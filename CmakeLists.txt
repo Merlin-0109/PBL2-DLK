@@ -1,0 +1,133 @@
+cmake_minimum_required(VERSION 3.16)
+project(Datchikham LANGUAGES CXX)
+
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Add include directory
+include_directories(${PROJECT_SOURCE_DIR}/include)
+
+cmake_minimum_required(VERSION 3.16)
+project(Datchikham LANGUAGES CXX)
+
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Add include directory
+include_directories(${PROJECT_SOURCE_DIR}/include)
+
+# Force CMake to find SFML 3.x in msys64
+set(CMAKE_PREFIX_PATH "C:/msys64/ucrt64")
+set(SFML_DIR "C:/msys64/ucrt64/lib/cmake/SFML")
+
+# Find SFML 3.0
+find_package(SFML 3.0 COMPONENTS Graphics Window System REQUIRED)
+
+if(SFML_FOUND)
+    message(STATUS "Found SFML ${SFML_VERSION}")
+    message(STATUS "SFML_DIR: ${SFML_DIR}")
+endif()
+
+# Source files (KHÔNG bao gồm main.cpp)
+set(SOURCES
+    src/Account.cpp
+    src/DataStore.cpp
+    src/Doctor.cpp
+    src/DoctorService.cpp
+    src/Guest.cpp
+    src/GUI.cpp
+    src/lichkham.cpp
+    src/Patient.cpp
+    src/PatientService.cpp
+    src/User.cpp
+)
+
+# Create library from sources
+add_library(DatchikhamLib STATIC ${SOURCES})
+
+# Link SFML to library (SFML 3.x syntax)
+target_link_libraries(DatchikhamLib PUBLIC 
+    SFML::Graphics 
+    SFML::Window 
+    SFML::System
+)
+
+# Main executable with GUI
+if(EXISTS ${CMAKE_SOURCE_DIR}/src/main_gui.cpp)
+    add_executable(Datchikham src/main_gui.cpp)
+    target_link_libraries(Datchikham PRIVATE DatchikhamLib)
+    message(STATUS "Building GUI version with main_gui.cpp")
+else()
+    message(WARNING "main_gui.cpp not found, using main.cpp")
+    add_executable(Datchikham src/main.cpp)
+    target_link_libraries(Datchikham PRIVATE DatchikhamLib)
+endif()
+
+# Copy assets folder to build directory (nếu tồn tại)
+if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
+    file(COPY ${CMAKE_SOURCE_DIR}/assets 
+         DESTINATION ${CMAKE_BINARY_DIR})
+    message(STATUS "Copied assets folder")
+else()
+    message(WARNING "assets folder not found - creating empty folder")
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets)
+endif()
+
+# Copy data folder to build directory (nếu tồn tại)
+if(EXISTS ${CMAKE_SOURCE_DIR}/data)
+    file(COPY ${CMAKE_SOURCE_DIR}/data 
+         DESTINATION ${CMAKE_BINARY_DIR})
+    message(STATUS "Copied data folder")
+else()
+    message(WARNING "data folder not found - will be created at runtime")
+endif()
+
+# Windows specific: Set executable properties
+if(WIN32)
+    set_target_properties(Datchikham PROPERTIES
+        WIN32_EXECUTABLE FALSE  # Show console for debugging
+    )
+endif()
+
+# Install targets
+install(TARGETS Datchikham DESTINATION bin)
+install(DIRECTORY assets DESTINATION bin)
+
+# Copy assets folder to build directory
+file(COPY ${CMAKE_SOURCE_DIR}/assets 
+     DESTINATION ${CMAKE_BINARY_DIR})
+
+# Copy data folder to build directory (if exists)
+if(EXISTS ${CMAKE_SOURCE_DIR}/data)
+    file(COPY ${CMAKE_SOURCE_DIR}/data 
+         DESTINATION ${CMAKE_BINARY_DIR})
+endif()
+
+# Windows specific settings
+if(WIN32)
+    # Copy SFML DLLs to output directory for Windows
+    if(SFML_FOUND)
+        # For SFML 3.x, DLLs are in the bin directory
+        set(SFML_DLL_DIR "${SFML_DIR}/../../../bin")
+        
+        file(GLOB SFML_DLLS "${SFML_DLL_DIR}/*.dll")
+        foreach(DLL ${SFML_DLLS})
+            add_custom_command(TARGET Datchikham POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${DLL}
+                $<TARGET_FILE_DIR:Datchikham>
+            )
+        endforeach()
+    endif()
+    
+    # Set subsystem to CONSOLE (để thấy console khi debug)
+    set_target_properties(Datchikham PROPERTIES
+        WIN32_EXECUTABLE FALSE
+    )
+endif()
+
+# Install targets
+install(TARGETS Datchikham DESTINATION bin)
+install(DIRECTORY assets DESTINATION bin)
