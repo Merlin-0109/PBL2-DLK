@@ -1,271 +1,558 @@
+// main.cpp - Integrated Console and GUI Application
 #include <iostream>
-#include <string>
+#include <limits>
 #include "Account.h"
-#include "DoctorService.h"
+#include "Guest.h"
+#include "Patient.h"
+#include "Doctor.h"
 #include "PatientService.h"
+#include "DoctorService.h"
+#include "DataStore.h"
+#include "GUI.h"
 
-void showMenu() {
-	std::cout << "================================" << std::endl;
-	std::cout << "  Datchikham - Demo Menu" << std::endl;
-	std::cout << "================================" << std::endl;
-	std::cout << "1) Register (demo)" << std::endl;
-	std::cout << "2) Login (demo)" << std::endl;
-	std::cout << "3) About" << std::endl;
-	std::cout << "0) Exit" << std::endl;
-	std::cout << "--------------------------------" << std::endl;
-	std::cout << "Choose an option: ";
+using namespace std;
+
+// Console menu functions
+void clearScreen() {
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
 }
 
-int main() {
-	std::cout << "Datchikham starting..." << std::endl;
-	// ensure default admin exists before any register/login
-	Account::ensureDefaultAdminExists();
-	DataStore::ensureAppointmentsDirExists();
-
-	while (true) {
-		showMenu();
-		std::string choice;
-		if (!std::getline(std::cin, choice)) break; // EOF or error
-
-		if (choice == "1") {
-			Account a;
-			a.registerAccount();
-			std::cout << "(Account created)" << std::endl;
-		} else if (choice == "2") {
-			Account a;
-			std::string role, id;
-			if (a.login(role, id)) {
-				// logged in submenu
-				bool logged = true;
-				while (logged) {
-					std::cout << "\nLogged in as " << role << " (ID=" << id << ")" << std::endl;
-					if (role == "Doctor") {
-						std::cout << "1) View appointments" << std::endl;
-						std::cout << "2) Update profile" << std::endl;
-						std::cout << "3) Logout" << std::endl;
-					} else if (role == "Patient") {
-						std::cout << "1) Book appointment" << std::endl;
-						std::cout << "2) View my appointments" << std::endl;
-						std::cout << "3) Update profile" << std::endl;
-						std::cout << "4) Logout" << std::endl;
-					} else {
-						std::cout << "1) View profile" << std::endl;
-						std::cout << "2) Logout" << std::endl;
-					}
-					std::cout << "Choose: ";
-					std::string s; std::getline(std::cin >> std::ws, s);
-					if (role == "Doctor") {
-						if (s == "1") {
-							auto appts = DoctorService::getAppointments(id);
-							std::cout << "Appointments for " << id << ":\n";
-							for (auto &p : appts) {
-								std::cout << " - file=" << p.filename << " patient=" << p.patientId << " date=" << p.date << " time=" << p.time << " reason=" << p.reason << "\n";
-							}
-						} else if (s == "2") {
-							// Update doctor profile
-							DataStore::DoctorInfo info = DataStore::readDoctorInfo(id);
-							std::cout << "\nUpdate Profile Information\n";
-							std::cout << "Current values shown in [brackets]. Press Enter to keep current value.\n\n";
-							
-							std::string input;
-							std::cout << "Name [" << info.name << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.name = input;
-							
-							std::cout << "Specialization [" << info.specialization << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.specialization = input;
-							
-							std::cout << "Faculty [" << info.faculty << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.faculty = input;
-							
-							std::cout << "Phone [" << info.phone << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.phone = input;
-							
-							std::cout << "Email [" << info.email << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.email = input;
-							
-							std::cout << "Date of Birth [" << info.dob << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.dob = input;
-							
-							std::cout << "Gender [" << info.gender << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.gender = input;
-							
-							std::cout << "Address [" << info.address << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.address = input;
-							
-							std::cout << "CCCD [" << info.cccd << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.cccd = input;
-							
-							if (DataStore::writeDoctorInfo(id, info)) {
-								std::cout << "Profile updated successfully.\n";
-							} else {
-								std::cout << "Error updating profile.\n";
-							}
-						} else if (s == "3") {
-							a.logout(); logged = false;
-						} else std::cout << "Unknown option" << std::endl;
-					} else if (role == "Patient") {
-						if (s == "1") {
-							// book
-							auto docs = DoctorService::getDoctorIDs();
-							if (docs.empty()) { std::cout << "No doctors available." << std::endl; }
-							else {
-								std::cout << "\nAvailable doctors:\n";
-								// Get doctor details first
-								std::vector<std::pair<std::string,std::string>> doctorDetails;
-								for (const auto& docId : docs) {
-									auto user = DataStore::readUser("Doctor", docId);
-									doctorDetails.push_back({docId, user.first}); // pair of ID and name
-								}
-								
-								// Show doctor list with names
-								for (size_t i=0;i<doctorDetails.size();++i) {
-									std::cout << i+1 << ") Dr. " << doctorDetails[i].second 
-									         << " (ID: " << doctorDetails[i].first << ")\n";
-								}
-								
-								// Get doctor selection
-								std::cout << "\nEnter doctor number for more details (or 0 to cancel): ";
-								std::string sel; std::getline(std::cin >> std::ws, sel);
-								size_t idx = 0;
-								try {
-									idx = std::stoul(sel);
-								} catch(...) {
-									std::cout << "Invalid input" << std::endl;
-									continue;
-								}
-								
-								if (idx == 0) {
-									std::cout << "Booking cancelled." << std::endl;
-									continue;
-								}
-								if (idx > doctorDetails.size()) {
-									std::cout << "Invalid selection" << std::endl;
-									continue;
-								}
-								
-								// Show selected doctor details
-								auto docId = doctorDetails[idx-1].first;
-								std::cout << "\nDoctor Details:\n";
-								std::cout << "Name: Dr. " << doctorDetails[idx-1].second << "\n";
-								auto docInfo = DataStore::readDoctorInfo(docId);
-								if (!docInfo.specialization.empty()) {
-									std::cout << "Specialization: " << docInfo.specialization << "\n";
-									std::cout << "Faculty: " << docInfo.faculty << "\n";
-									std::cout << "Phone: " << docInfo.phone << "\n";
-									std::cout << "Email: " << docInfo.email << "\n";
-								}
-								
-								// Confirm booking
-								std::cout << "\nConfirm booking with this doctor? (y/n): ";
-								std::string confirm;
-								std::getline(std::cin >> std::ws, confirm);
-								if (confirm != "y" && confirm != "Y") {
-									std::cout << "Booking cancelled." << std::endl;
-									continue;
-								}
-								else {
-									std::string date, time, reason, apptId;
-									std::cout << "Enter date (YYYY-MM-DD): "; std::getline(std::cin,date);
-									std::cout << "Enter time (HH:MM): "; std::getline(std::cin,time);
-									std::cout << "Enter reason: "; std::getline(std::cin,reason);
-									if (PatientService::bookAppointment(id, docs[idx-1], date, time, reason, apptId))
-										std::cout << "Appointment created: " << apptId << std::endl;
-									else std::cout << "Failed to create appointment" << std::endl;
-								}
-							}
-						} else if (s == "2") {
-							auto appts = PatientService::getAppointments(id);
-							std::cout << "Your appointments:\n";
-							for (auto &p : appts) {
-								std::cout << " - file=" << p.filename << " doctor=" << p.doctorId << " date=" << p.date << " time=" << p.time << " reason=" << p.reason << "\n";
-							}
-						} else if (s == "3") {
-							// Update patient profile
-							DataStore::PatientInfo info = DataStore::readPatientInfo(id);
-							std::cout << "\nUpdate Profile Information\n";
-							std::cout << "Current values shown in [brackets]. Press Enter to keep current value.\n\n";
-							
-							std::string input;
-							std::cout << "Name [" << info.name << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.name = input;
-							
-							std::cout << "Phone [" << info.phone << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.phone = input;
-							
-							std::cout << "Email [" << info.email << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.email = input;
-							
-							std::cout << "Date of Birth [" << info.dob << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.dob = input;
-							
-							std::cout << "Gender [" << info.gender << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.gender = input;
-							
-							std::cout << "Address [" << info.address << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.address = input;
-							
-							std::cout << "CCCD [" << info.cccd << "]: ";
-							std::getline(std::cin >> std::ws, input);
-							if (!input.empty()) info.cccd = input;
-							
-							if (DataStore::writePatientInfo(id, info)) {
-								std::cout << "Profile updated successfully.\n";
-							} else {
-								std::cout << "Error updating profile.\n";
-							}
-						} else if (s == "4") { 
-							a.logout(); logged = false; 
-						} else std::cout << "Unknown option" << std::endl;
-					} else {
-						if (s == "1") {
-							std::cout << "Username: " << a.getUsername() << std::endl;
-							std::cout << "ID: " << a.getID() << std::endl;
-						} else if (s == "2") { a.logout(); logged = false; }
-						else std::cout << "Unknown option" << std::endl;
-					}
-				}
-			}
-		} else if (choice == "3") {
-			std::cout << "Datchikham demo app. Built to demonstrate startup and menu." << std::endl;
-			std::cout << "Stored appointments (quick check):\n";
-			for (auto &fn : std::filesystem::directory_iterator("data/appointments")) {
-				if (!fn.is_regular_file()) continue;
-				auto name = fn.path().filename().string();
-				// only consider .txt appointment files
-				if (name.size() < 5 || name.substr(name.size()-4) != ".txt") {
-					std::cout << " - skipping non-txt file: " << name << "\n";
-					continue;
-				}
-				auto d = DataStore::readAppointment(name);
-				if (d) std::cout << " - " << d->filename << " patient=" << d->patientId << " doctor=" << d->doctorId << " date=" << d->date << " time=" << d->time << " reason=" << d->reason << "\n";
-				else std::cout << " - skipped empty/invalid appointment file: " << name << "\n";
-			}
-		} else if (choice == "0") {
-			std::cout << "Exiting..." << std::endl;
-			break;
-		} else {
-			std::cout << "Unknown option: '" << choice << "'" << std::endl;
-		}
-
-		std::cout << "\n(Press Enter to continue)" << std::endl;
-		std::string tmp; std::getline(std::cin, tmp);
-	}
-
-	return 0;
+void pauseScreen() {
+    cout << "\nNhan Enter de tiep tuc...";
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    cin.get();
 }
 
+void showMainMenu() {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "   DAT LICH KHAM - QUAN LY BENH VIEN   \n";
+    cout << "========================================\n";
+    cout << "1. Dang nhap\n";
+    cout << "2. Dang ky\n";
+    cout << "3. Mo giao dien GUI\n";
+    cout << "0. Thoat\n";
+    cout << "========================================\n";
+    cout << "Chon: ";
+}
+
+void showPatientMenu() {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "         MENU BENH NHAN                 \n";
+    cout << "========================================\n";
+    cout << "1. Dat lich kham\n";
+    cout << "2. Xem lich kham\n";
+    cout << "3. Huy lich kham\n";
+    cout << "4. Cap nhat thong tin\n";
+    cout << "5. Xem thong tin ca nhan\n";
+    cout << "0. Dang xuat\n";
+    cout << "========================================\n";
+    cout << "Chon: ";
+}
+
+void showDoctorMenu() {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "          MENU BAC SI                   \n";
+    cout << "========================================\n";
+    cout << "1. Xem lich hen\n";
+    cout << "2. Cap nhat thong tin\n";
+    cout << "3. Xem thong tin ca nhan\n";
+    cout << "0. Dang xuat\n";
+    cout << "========================================\n";
+    cout << "Chon: ";
+}
+
+void showAdminMenu() {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "        MENU QUAN TRI VIEN              \n";
+    cout << "========================================\n";
+    cout << "1. Quan ly benh nhan\n";
+    cout << "2. Quan ly bac si\n";
+    cout << "3. Thong ke\n";
+    cout << "0. Dang xuat\n";
+    cout << "========================================\n";
+    cout << "Chon: ";
+}
+
+void handlePatientBooking(const string& patientId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "         DAT LICH KHAM                  \n";
+    cout << "========================================\n";
+    
+    vector<string> doctorIds = DoctorService::getDoctorIDs();
+    
+    if (doctorIds.empty()) {
+        cout << "Khong co bac si nao trong he thong!\n";
+        pauseScreen();
+        return;
+    }
+    
+    cout << "\nDanh sach bac si:\n";
+    cout << "----------------------------------------\n";
+    for (size_t i = 0; i < doctorIds.size(); i++) {
+        auto info = DataStore::readDoctorInfo(doctorIds[i]);
+        cout << (i + 1) << ". Dr. " << info.name;
+        if (!info.specialization.empty()) {
+            cout << " - " << info.specialization;
+        }
+        cout << " (ID: " << doctorIds[i] << ")\n";
+    }
+    cout << "----------------------------------------\n";
+    
+    int choice;
+    cout << "\nChon bac si (1-" << doctorIds.size() << "): ";
+    cin >> choice;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    
+    if (choice < 1 || choice > static_cast<int>(doctorIds.size())) {
+        cout << "Lua chon khong hop le!\n";
+        pauseScreen();
+        return;
+    }
+    
+    string selectedDoctorId = doctorIds[choice - 1];
+    
+    string date, time, reason;
+    cout << "\nNhap ngay kham (YYYY-MM-DD): ";
+    getline(cin, date);
+    
+    cout << "Nhap gio kham (HH:MM): ";
+    getline(cin, time);
+    
+    cout << "Nhap ly do kham: ";
+    getline(cin, reason);
+    
+    string appointmentId;
+    if (PatientService::bookAppointment(patientId, selectedDoctorId, date, time, reason, appointmentId)) {
+        cout << "\n========================================\n";
+        cout << "Dat lich thanh cong!\n";
+        cout << "Ma lich kham: " << appointmentId << "\n";
+        cout << "========================================\n";
+    } else {
+        cout << "\nKhong the dat lich kham!\n";
+    }
+    
+    pauseScreen();
+}
+
+void handleViewAppointments(const string& patientId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "       LICH KHAM CUA BAN                \n";
+    cout << "========================================\n";
+    
+    auto appointments = PatientService::getAppointments(patientId);
+    
+    if (appointments.empty()) {
+        cout << "Ban chua co lich kham nao!\n";
+    } else {
+        cout << "\n";
+        for (size_t i = 0; i < appointments.size(); i++) {
+            const auto& appt = appointments[i];
+            cout << "----------------------------------------\n";
+            cout << (i + 1) << ". Ma lich: " << appt.appointmentId << "\n";
+            cout << "   Bac si: " << appt.doctorId << "\n";
+            cout << "   Ngay: " << appt.date << " | Gio: " << appt.time << "\n";
+            cout << "   Ly do: " << appt.reason << "\n";
+            cout << "   Trang thai: " << appt.status << "\n";
+        }
+        cout << "----------------------------------------\n";
+    }
+    
+    pauseScreen();
+}
+
+void handleCancelAppointment(const string& patientId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "        HUY LICH KHAM                   \n";
+    cout << "========================================\n";
+    
+    auto appointments = PatientService::getAppointments(patientId);
+    
+    if (appointments.empty()) {
+        cout << "Ban chua co lich kham nao de huy!\n";
+        pauseScreen();
+        return;
+    }
+    
+    cout << "\nDanh sach lich kham:\n";
+    for (size_t i = 0; i < appointments.size(); i++) {
+        const auto& appt = appointments[i];
+        cout << (i + 1) << ". " << appt.date << " " << appt.time 
+             << " - Dr. " << appt.doctorId << "\n";
+    }
+    
+    int choice;
+    cout << "\nChon lich can huy (1-" << appointments.size() << "): ";
+    cin >> choice;
+    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+    
+    if (choice < 1 || choice > static_cast<int>(appointments.size())) {
+        cout << "Lua chon khong hop le!\n";
+        pauseScreen();
+        return;
+    }
+    
+    string appointmentId = appointments[choice - 1].appointmentId;
+    if (PatientService::cancelAppointment(appointmentId)) {
+        cout << "\nHuy lich thanh cong!\n";
+    } else {
+        cout << "\nKhong the huy lich kham!\n";
+    }
+    
+    pauseScreen();
+}
+
+void handleUpdatePatientProfile(const string& patientId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "    CAP NHAT THONG TIN BENH NHAN       \n";
+    cout << "========================================\n";
+    
+    auto info = DataStore::readPatientInfo(patientId);
+    
+    cout << "\nThong tin hien tai:\n";
+    cout << "Ho ten: " << info.name << "\n";
+    cout << "So dien thoai: " << info.phone << "\n";
+    cout << "Email: " << info.email << "\n";
+    cout << "Dia chi: " << info.address << "\n";
+    
+    cout << "\n--- Nhap thong tin moi (Enter de giu nguyen) ---\n";
+    
+    string input;
+    cout << "Ho ten moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.name = input;
+    
+    cout << "So dien thoai moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.phone = input;
+    
+    cout << "Email moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.email = input;
+    
+    cout << "Dia chi moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.address = input;
+    
+    if (DataStore::writePatientInfo(patientId, info)) {
+        cout << "\nCap nhat thanh cong!\n";
+    } else {
+        cout << "\nKhong the cap nhat thong tin!\n";
+    }
+    
+    pauseScreen();
+}
+
+void handleViewPatientProfile(const string& patientId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "      THONG TIN BENH NHAN              \n";
+    cout << "========================================\n";
+    
+    auto info = DataStore::readPatientInfo(patientId);
+    
+    cout << "\nMa benh nhan: " << patientId << "\n";
+    cout << "Ho va ten: " << info.name << "\n";
+    cout << "So dien thoai: " << info.phone << "\n";
+    cout << "Email: " << info.email << "\n";
+    cout << "Dia chi: " << info.address << "\n";
+    
+    pauseScreen();
+}
+
+void handleDoctorViewAppointments(const string& doctorId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "         LICH HEN CUA BAC SI           \n";
+    cout << "========================================\n";
+    
+    auto appointments = DoctorService::getAppointments(doctorId);
+    
+    if (appointments.empty()) {
+        cout << "Chua co lich hen nao!\n";
+    } else {
+        cout << "\n";
+        for (size_t i = 0; i < appointments.size(); i++) {
+            const auto& appt = appointments[i];
+            cout << "----------------------------------------\n";
+            cout << (i + 1) << ". Ma lich: " << appt.appointmentId << "\n";
+            cout << "   Benh nhan: " << appt.patientId << "\n";
+            cout << "   Ngay: " << appt.date << " | Gio: " << appt.time << "\n";
+            cout << "   Ly do: " << appt.reason << "\n";
+            cout << "   Trang thai: " << appt.status << "\n";
+        }
+        cout << "----------------------------------------\n";
+    }
+    
+    pauseScreen();
+}
+
+void handleUpdateDoctorProfile(const string& doctorId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "      CAP NHAT THONG TIN BAC SI        \n";
+    cout << "========================================\n";
+    
+    auto info = DataStore::readDoctorInfo(doctorId);
+    
+    cout << "\nThong tin hien tai:\n";
+    cout << "Ho ten: " << info.name << "\n";
+    cout << "So dien thoai: " << info.phone << "\n";
+    cout << "Email: " << info.email << "\n";
+    cout << "Chuyen khoa: " << info.specialization << "\n";
+    
+    cout << "\n--- Nhap thong tin moi (Enter de giu nguyen) ---\n";
+    
+    string input;
+    cout << "Ho ten moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.name = input;
+    
+    cout << "So dien thoai moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.phone = input;
+    
+    cout << "Email moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.email = input;
+    
+    cout << "Chuyen khoa moi: ";
+    getline(cin, input);
+    if (!input.empty()) info.specialization = input;
+    
+    if (DataStore::writeDoctorInfo(doctorId, info)) {
+        cout << "\nCap nhat thanh cong!\n";
+    } else {
+        cout << "\nKhong the cap nhat thong tin!\n";
+    }
+    
+    pauseScreen();
+}
+
+void handleViewDoctorProfile(const string& doctorId) {
+    clearScreen();
+    cout << "========================================\n";
+    cout << "        THONG TIN BAC SI               \n";
+    cout << "========================================\n";
+    
+    auto info = DataStore::readDoctorInfo(doctorId);
+    
+    cout << "\nMa bac si: " << doctorId << "\n";
+    cout << "Ho va ten: " << info.name << "\n";
+    cout << "So dien thoai: " << info.phone << "\n";
+    cout << "Email: " << info.email << "\n";
+    cout << "Chuyen khoa: " << info.specialization << "\n";
+    
+    pauseScreen();
+}
+
+void runPatientMenu(const string& patientId) {
+    int choice;
+    do {
+        showPatientMenu();
+        cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        
+        switch (choice) {
+            case 1:
+                handlePatientBooking(patientId);
+                break;
+            case 2:
+                handleViewAppointments(patientId);
+                break;
+            case 3:
+                handleCancelAppointment(patientId);
+                break;
+            case 4:
+                handleUpdatePatientProfile(patientId);
+                break;
+            case 5:
+                handleViewPatientProfile(patientId);
+                break;
+            case 0:
+                cout << "Dang xuat...\n";
+                break;
+            default:
+                cout << "Lua chon khong hop le!\n";
+                pauseScreen();
+        }
+    } while (choice != 0);
+}
+
+void runDoctorMenu(const string& doctorId) {
+    int choice;
+    do {
+        showDoctorMenu();
+        cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        
+        switch (choice) {
+            case 1:
+                handleDoctorViewAppointments(doctorId);
+                break;
+            case 2:
+                handleUpdateDoctorProfile(doctorId);
+                break;
+            case 3:
+                handleViewDoctorProfile(doctorId);
+                break;
+            case 0:
+                cout << "Dang xuat...\n";
+                break;
+            default:
+                cout << "Lua chon khong hop le!\n";
+                pauseScreen();
+        }
+    } while (choice != 0);
+}
+
+void runAdminMenu(const string& adminId) {
+    int choice;
+    do {
+        showAdminMenu();
+        cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        
+        switch (choice) {
+            case 1:
+                cout << "Chuc nang quan ly benh nhan...\n";
+                pauseScreen();
+                break;
+            case 2:
+                cout << "Chuc nang quan ly bac si...\n";
+                pauseScreen();
+                break;
+            case 3:
+                cout << "Chuc nang thong ke...\n";
+                pauseScreen();
+                break;
+            case 0:
+                cout << "Dang xuat...\n";
+                break;
+            default:
+                cout << "Lua chon khong hop le!\n";
+                pauseScreen();
+        }
+    } while (choice != 0);
+}
+
+void runConsoleMode() {
+    Account account;
+    string role, id;
+    int choice;
+    
+    do {
+        showMainMenu();
+        cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        
+        switch (choice) {
+            case 1: // Login
+                clearScreen();
+                cout << "========================================\n";
+                cout << "           DANG NHAP                    \n";
+                cout << "========================================\n";
+                
+                // Account::login already handles input internally
+                if (account.login(role, id)) {
+                    cout << "\nDang nhap thanh cong!\n";
+                    cout << "Vai tro: " << role << " | ID: " << id << "\n";
+                    pauseScreen();
+                    
+                    if (role == "Patient") {
+                        runPatientMenu(id);
+                    } else if (role == "Doctor") {
+                        runDoctorMenu(id);
+                    } else if (role == "Admin") {
+                        runAdminMenu(id);
+                    }
+                } else {
+                    cout << "\nDang nhap that bai!\n";
+                    pauseScreen();
+                }
+                break;
+                
+            case 2: // Register
+                clearScreen();
+                cout << "========================================\n";
+                cout << "            DANG KY                     \n";
+                cout << "========================================\n";
+                
+                // Account::registerAccount already handles input internally
+                account.registerAccount();
+                pauseScreen();
+                break;
+                
+            case 3: // GUI Mode
+                try {
+                    HospitalGUI gui;
+                    gui.run();
+                } catch (const exception& e) {
+                    cerr << "Loi GUI: " << e.what() << endl;
+                    pauseScreen();
+                }
+                break;
+                
+            case 0:
+                cout << "\nCam on da su dung he thong!\n";
+                break;
+                
+            default:
+                cout << "Lua chon khong hop le!\n";
+                pauseScreen();
+        }
+    } while (choice != 0);
+}
+
+int main(int argc, char* argv[]) {
+    // Initialize system
+    Account::ensureDefaultAdminExists();
+    DataStore::ensureAppointmentsDirExists();
+    
+    // Check command line arguments
+    bool useGUI = false;
+    if (argc > 1) {
+        string arg = argv[1];
+        if (arg == "--gui" || arg == "-g") {
+            useGUI = true;
+        } else if (arg == "--console" || arg == "-c") {
+            useGUI = false;
+        } else if (arg == "--help" || arg == "-h") {
+            cout << "DAT LICH KHAM - Hospital Management System\n\n";
+            cout << "Usage:\n";
+            cout << "  " << argv[0] << " [option]\n\n";
+            cout << "Options:\n";
+            cout << "  --gui, -g       Start in GUI mode\n";
+            cout << "  --console, -c   Start in console mode (default)\n";
+            cout << "  --help, -h      Show this help message\n";
+            return 0;
+        }
+    }
+    
+    try {
+        if (useGUI) {
+            // Launch GUI directly
+            HospitalGUI gui;
+            gui.run();
+        } else {
+            // Run console mode with option to launch GUI
+            runConsoleMode();
+        }
+    } catch (const exception& e) {
+        cerr << "Loi: " << e.what() << endl;
+        return 1;
+    }
+    
+    return 0;
+}

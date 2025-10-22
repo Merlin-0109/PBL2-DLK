@@ -1,52 +1,67 @@
+// DataStore.h - Fixed version with all required functions
 #pragma once
 #include <string>
 #include <vector>
-#include <optional>
-#include <utility>
 
-namespace DataStore {
-    struct UserInfo {
+class DataStore {
+public:
+    // Struct for Patient Information
+    struct PatientInfo {
         std::string name;
         std::string phone;
         std::string email;
-        std::string dob;
-        std::string gender;
         std::string address;
-        std::string cccd;
-    };
-    
-    struct DoctorInfo : public UserInfo {
-        std::string specialization;
-        std::string faculty;
-    };
-    
-    struct PatientInfo : public UserInfo {
-        // Add any patient-specific fields here if needed
+        std::string dateOfBirth;
+        std::string gender;
     };
 
+    // Struct for Doctor Information
+    struct DoctorInfo {
+        std::string name;
+        std::string phone;
+        std::string email;
+        std::string specialization;
+        std::string experience;
+    };
+
+    // Struct for Appointment Details - COMPLETE VERSION
     struct AppointmentDetails {
-        std::string filename; // filename in data/appointments
+        std::string appointmentId;
         std::string patientId;
         std::string doctorId;
         std::string date;
         std::string time;
         std::string reason;
+        std::string status;
     };
 
-    std::vector<std::string> listIDs(const std::string& role);
-    // returns pair<username,password>
-    std::pair<std::string,std::string> readUser(const std::string& role, const std::string& id);
-    bool appendAppointment(const std::string& patientId, const std::string& doctorId, const std::string& date, const std::string& time, const std::string& reason, std::string& outAppointmentId);
-    std::vector<std::string> listAppointmentsForPatient(const std::string& patientId);
-    // read details for appointment file name (filename with extension)
-    std::optional<AppointmentDetails> readAppointment(const std::string& filename);
-    void ensureAppointmentsDirExists();
+    // Patient functions
+    static bool writePatientInfo(const std::string& patientId, const PatientInfo& info);
+    static PatientInfo readPatientInfo(const std::string& patientId);
+    static bool patientExists(const std::string& patientId);
+
+    // Doctor functions
+    static bool writeDoctorInfo(const std::string& doctorId, const DoctorInfo& info);
+    static DoctorInfo readDoctorInfo(const std::string& doctorId);
+    static bool doctorExists(const std::string& doctorId);
+
+    // Appointment functions
+    static bool writeAppointment(const std::string& appointmentId, const AppointmentDetails& details);
+    static AppointmentDetails readAppointment(const std::string& appointmentId);
+    static std::vector<std::string> getPatientAppointments(const std::string& patientId);
+    static std::vector<std::string> getDoctorAppointments(const std::string& doctorId);
+    static bool updateAppointmentStatus(const std::string& appointmentId, const std::string& newStatus);
+    static bool deleteAppointment(const std::string& appointmentId);
     
-    // Doctor information methods
-    DoctorInfo readDoctorInfo(const std::string& doctorId);
-    bool writeDoctorInfo(const std::string& doctorId, const DoctorInfo& info);
-    
-    // Patient information methods
-    PatientInfo readPatientInfo(const std::string& patientId);
-    bool writePatientInfo(const std::string& patientId, const PatientInfo& info);
-}
+    // New functions for Services
+    static std::vector<std::string> listIDs(const std::string& role);
+    static bool appendAppointment(const std::string& patientId, const std::string& doctorId, 
+                                  const std::string& date, const std::string& time, 
+                                  const std::string& reason, std::string& outAppointmentId);
+    static std::vector<std::string> listAppointmentsForPatient(const std::string& patientId);
+    static std::vector<std::string> listAppointmentsForDoctor(const std::string& doctorId);
+
+    // Utility functions
+    static void ensureAppointmentsDirExists();
+    static std::string generateAppointmentId();
+};

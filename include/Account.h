@@ -1,41 +1,44 @@
+// Account.h - Extended version with GUI support
 #pragma once
-#include <iostream>
-#include <fstream>
 #include <string>
-#include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <iomanip>
-
-class User;
+#include <sstream>
+#include <filesystem>
 
 namespace fs = std::filesystem;
 
 class Account {
 private:
-    std::string role;   // "Admin", "Doctor", "Patient"
-    std::string id;     // Ví dụ: 01001, 020101, 001
+    std::string role;
+    std::string id;
     std::string username;
     std::string password;
+
+    std::string generateID(const std::string& role);
+    void saveUserData(const std::string& role, const std::string& id);
+    void appendIDToList(const std::string& role, const std::string& id);
 
 public:
     Account();
     ~Account();
 
-    // Prompts for username/password, returns true on success and fills outRole/outId
+    // Original console-based methods
     bool login(std::string& outRole, std::string& outId);
     void logout();
     void registerAccount();
+    
+    // NEW: GUI-compatible methods
+    bool loginWithCredentials(const std::string& inputUser, const std::string& inputPass, 
+                             std::string& outRole, std::string& outId);
+    bool registerWithCredentials(const std::string& inputUser, const std::string& inputPass,
+                                const std::string& inputRole, std::string& outId);
 
-    Account& operator =(const Account& other);
-
-    // simple accessors for logged-in session
-    std::string getUsername() const;
-    std::string getID() const;
-
-    // Ensure a default Admin account exists (creates data/Admin if missing)
     static void ensureDefaultAdminExists();
 
-private:
-    std::string generateID(const std::string& role);
-    void saveUserData(const std::string& role, const std::string& id);
-    void appendIDToList(const std::string& role, const std::string& id);
+    Account& operator=(const Account& other);
+
+    std::string getUsername() const;
+    std::string getID() const;
 };

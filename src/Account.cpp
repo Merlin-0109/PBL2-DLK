@@ -1,3 +1,4 @@
+// Account.cpp - Extended with GUI support
 #include "Account.h"
 #include "User.h"
 
@@ -23,6 +24,7 @@ void Account::ensureDefaultAdminExists() {
     }
 }
 
+// Original console-based login
 bool Account::login(std::string& outRole, std::string& outId) {
     std::string inputUser, inputPass;
     std::cout << "Nhap ten dang nhap: ";
@@ -30,6 +32,12 @@ bool Account::login(std::string& outRole, std::string& outId) {
     std::cout << "Nhap mat khau: ";
     std::cin >> inputPass;
 
+    return loginWithCredentials(inputUser, inputPass, outRole, outId);
+}
+
+// NEW: GUI-compatible login
+bool Account::loginWithCredentials(const std::string& inputUser, const std::string& inputPass, 
+                                   std::string& outRole, std::string& outId) {
     bool success = false;
     for (auto roleName : {"Admin", "Doctor", "Patient"}) {
         std::ifstream idList("data/" + std::string(roleName) + ".txt");
@@ -42,10 +50,9 @@ bool Account::login(std::string& outRole, std::string& outId) {
             std::getline(file, fileUser);
             std::getline(file, filePass);
             if (inputUser == fileUser && inputPass == filePass) {
-                std::cout << "Dang nhap thanh cong voi vai tro: " << roleName << "\n";
                 // set current account state
                 role = roleName;
-                this->id = id; // keep the found id in member
+                this->id = id;
                 username = inputUser;
                 password = inputPass;
                 outRole = roleName;
@@ -56,8 +63,6 @@ bool Account::login(std::string& outRole, std::string& outId) {
         }
         if (success) break;
     }
-    if (!success)
-        std::cout << "Dang nhap that bai!\n";
     return success;
 }
 
@@ -65,6 +70,7 @@ void Account::logout() {
     std::cout << "Da dang xuat.\n";
 }
 
+// Original console-based register
 void Account::registerAccount() {
     std::cout << "Nhap vai tro (Doctor/Patient): ";
     std::cin >> role;
@@ -89,6 +95,32 @@ void Account::registerAccount() {
     std::cout << "Tao tai khoan thanh cong! ID cua ban la: " << id << "\n";
 }
 
+// NEW: GUI-compatible register
+bool Account::registerWithCredentials(const std::string& inputUser, const std::string& inputPass,
+                                     const std::string& inputRole, std::string& outId) {
+    // Validate role
+    std::string normalizedRole = inputRole;
+    for (auto &c : normalizedRole) c = std::tolower((unsigned char)c);
+    
+    if (normalizedRole == "doctor") {
+        role = "Doctor";
+    } else if (normalizedRole == "patient") {
+        role = "Patient";
+    } else {
+        return false; // Invalid role
+    }
+
+    username = inputUser;
+    password = inputPass;
+
+    id = generateID(role);
+    saveUserData(role, id);
+    appendIDToList(role, id);
+    
+    outId = id;
+    return true;
+}
+
 std::string Account::generateID(const std::string& role) {
     std::string prefix;
     int count = 0;
@@ -96,10 +128,8 @@ std::string Account::generateID(const std::string& role) {
     if (role == "Patient") {
         prefix = "01";
     } else if (role == "Doctor") {
-        std::string maKhoa;
-        std::cout << "Nhap ma khoa (2 so): ";
-        std::cin >> maKhoa;
-        prefix = "02" + maKhoa;
+        // For GUI, use default department code
+        prefix = "0201";
     } else if (role == "Admin") {
         prefix = "00";
     }
