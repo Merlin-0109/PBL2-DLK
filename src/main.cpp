@@ -520,35 +520,10 @@ int main(int argc, char* argv[]) {
     Account::ensureDefaultAdminExists();
     DataStore::ensureAppointmentsDirExists();
     
-    // Check command line arguments
-    bool useGUI = false;
-    if (argc > 1) {
-        string arg = argv[1];
-        if (arg == "--gui" || arg == "-g") {
-            useGUI = true;
-        } else if (arg == "--console" || arg == "-c") {
-            useGUI = false;
-        } else if (arg == "--help" || arg == "-h") {
-            cout << "DAT LICH KHAM - Hospital Management System\n\n";
-            cout << "Usage:\n";
-            cout << "  " << argv[0] << " [option]\n\n";
-            cout << "Options:\n";
-            cout << "  --gui, -g       Start in GUI mode\n";
-            cout << "  --console, -c   Start in console mode (default)\n";
-            cout << "  --help, -h      Show this help message\n";
-            return 0;
-        }
-    }
-    
     try {
-        if (useGUI) {
-            // Launch GUI directly
-            HospitalGUI gui;
-            gui.run();
-        } else {
-            // Run console mode with option to launch GUI
-            runConsoleMode();
-        }
+        // Always launch GUI mode
+        HospitalGUI gui;
+        gui.run();
     } catch (const exception& e) {
         cerr << "Loi: " << e.what() << endl;
         return 1;

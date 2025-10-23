@@ -110,6 +110,22 @@ bool Account::registerWithCredentials(const std::string& inputUser, const std::s
         return false; // Invalid role
     }
 
+    // Check if username already exists
+    for (auto roleName : {"Admin", "Doctor", "Patient"}) {
+        std::ifstream idList("data/" + std::string(roleName) + ".txt");
+        if (!idList.is_open()) continue;
+        std::string existingId;
+        while (idList >> existingId) {
+            std::ifstream file("data/" + std::string(roleName) + "/" + existingId + ".txt");
+            if (!file.is_open()) continue;
+            std::string fileUser;
+            std::getline(file, fileUser);
+            if (inputUser == fileUser) {
+                return false; // Username already exists
+            }
+        }
+    }
+
     username = inputUser;
     password = inputPass;
 

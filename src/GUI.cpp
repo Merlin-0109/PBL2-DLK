@@ -340,7 +340,8 @@ HospitalGUI::HospitalGUI()
     : window(sf::VideoMode({1200, 800}), "Datchikham - He Thong Quan Ly Benh Vien"),
       currentScreen(Screen::MAIN_MENU),
       isLoggedIn(false),
-      selectedDoctorIndex(-1) {
+      selectedDoctorIndex(-1),
+      selectedRegisterRole("Patient") { // Default to Patient
     
     if (!font.openFromFile("assets/arial.ttf")) {
         std::cerr << "Error: Cannot load font" << std::endl;
@@ -416,38 +417,55 @@ void HospitalGUI::setupLoginScreen() {
 void HospitalGUI::setupRegisterScreen() {
     buttons.clear();
     inputBoxes.clear();
+    selectedRegisterRole = "Patient"; // Reset to default
     
-    loginCard = std::make_unique<Card>(375, 140, 450, 580, "Create Account", 
+    loginCard = std::make_unique<Card>(375, 100, 450, 650, "Create Account", 
                                        "Register to get started", font);
     
     auto cardPos = loginCard->getPosition();
     float centerX = cardPos.x + 50;
     
-    auto usernameBox = std::make_unique<ModernInputBox>(centerX, 270, 350, 50, 
+    // Role selection label
+    // Will be drawn in render()
+    
+    // Role selection buttons
+    auto patientRoleBtn = std::make_unique<ModernButton>(centerX, 230, 165, 45, "Patient", font);
+    patientRoleBtn->setOnClick([this]() {
+        selectedRegisterRole = "Patient";
+    });
+    buttons.push_back(std::move(patientRoleBtn));
+    
+    auto doctorRoleBtn = std::make_unique<ModernButton>(centerX + 185, 230, 165, 45, "Doctor", font, sf::Color(52, 211, 153));
+    doctorRoleBtn->setOnClick([this]() {
+        selectedRegisterRole = "Doctor";
+    });
+    buttons.push_back(std::move(doctorRoleBtn));
+    
+    auto usernameBox = std::make_unique<ModernInputBox>(centerX, 310, 350, 50, 
                                                          "Username", "Choose a username",
                                                          font);
     inputBoxes.push_back(std::move(usernameBox));
     
-    auto emailBox = std::make_unique<ModernInputBox>(centerX, 350, 350, 50, 
+    auto emailBox = std::make_unique<ModernInputBox>(centerX, 390, 350, 50, 
                                                       "Email", "Enter your email",
                                                       font);
     inputBoxes.push_back(std::move(emailBox));
     
-    auto passwordBox = std::make_unique<ModernInputBox>(centerX, 430, 350, 50, 
+    auto passwordBox = std::make_unique<ModernInputBox>(centerX, 470, 350, 50, 
                                                          "Password", "Create a password",
                                                          font, true);
     inputBoxes.push_back(std::move(passwordBox));
     
-    auto confirmBox = std::make_unique<ModernInputBox>(centerX, 510, 350, 50, 
+    auto confirmBox = std::make_unique<ModernInputBox>(centerX, 550, 350, 50, 
                                                         "Confirm Password", "Confirm your password",
                                                         font, true);
     inputBoxes.push_back(std::move(confirmBox));
     
-    auto registerBtn = std::make_unique<ModernButton>(centerX, 590, 350, 50, "Create Account", font, sf::Color(52, 211, 153));
+    auto registerBtn = std::make_unique<ModernButton>(centerX, 630, 350, 50, "Create Account", font, sf::Color(52, 211, 153));
     registerBtn->setOnClick([this]() { performRegister(); });
     buttons.push_back(std::move(registerBtn));
     
-    auto backBtn = std::make_unique<ModernButton>(centerX + 90, 660, 170, 45, "Back", font, sf::Color(156, 163, 175));
+    auto backBtn = std::make_unique<ModernButton>(centerX + 90, 700, 170, 45, "Back", font, sf::Color(156, 163, 175));
     backBtn->setOnClick([this]() {
         currentScreen = Screen::MAIN_MENU;
         setupMainMenu();
@@ -897,6 +915,20 @@ void HospitalGUI::render() {
     // Draw card if exists
     if (loginCard) {
         loginCard->draw(window);
+        
+        // If on register screen, show role selection label
+        if (currentScreen == Screen::REGISTER) {
+            sf::Text roleLabel(font, "Select Role:", 16);
+            roleLabel.setFillColor(sf::Color(75, 85, 99));
+            roleLabel.setPosition({425, 205});
+            window.draw(roleLabel);
+            
+            // Show selected role
+            sf::Text selectedRole(font, "Selected: " + selectedRegisterRole, 14);
+            selectedRole.setFillColor(sf::Color(74, 144, 226));
+            selectedRole.setPosition({625, 245});
+            window.draw(selectedRole);
+        }
     }
     
     // Draw input boxes

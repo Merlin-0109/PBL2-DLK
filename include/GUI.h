@@ -148,6 +148,7 @@ private:
     
     std::vector<std::string> doctorIds;
     int selectedDoctorIndex;
+    std::string selectedRegisterRole; // NEW: Store selected role for registration
 
 public:
     HospitalGUI();
