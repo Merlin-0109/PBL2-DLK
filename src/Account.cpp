@@ -1,119 +1,224 @@
-// Account.cpp - Extended with GUI support
+﻿// Account.cpp - System authentication and account management
 #include "Account.h"
-#include "User.h"
+#include <algorithm>
+#include <cctype>
 
-Account::Account() {}
+Account::Account() : role(""), id(""), username(""), password("") {}
+
 Account::~Account() {}
 
-// Create a default admin account if none exists
+// ============================================================================
+// STATIC UTILITIES
+// ============================================================================
+
 void Account::ensureDefaultAdminExists() {
     fs::create_directories("data/Admin");
+    
     std::ifstream list("data/Admin.txt");
-    bool has = false;
+    bool hasAdmin = false;
     std::string id;
-    while (list >> id) { has = true; break; }
+    while (list >> id) { 
+        hasAdmin = true; 
+        break; 
+    }
     list.close();
-    if (!has) {
+    
+    if (!hasAdmin) {
         std::string adminId = "00";
         std::ofstream file("data/Admin/" + adminId + ".txt");
         file << "admin" << "\n" << "admin" << "\n";
         file.close();
-        std::ofstream listw("data/Admin.txt", std::ios::app);
-        listw << adminId << "\n";
-        listw.close();
+        
+        std::ofstream listWrite("data/Admin.txt", std::ios::app);
+        listWrite << adminId << "\n";
+        listWrite.close();
+        
+        std::cout << u8"Đã tạo tài khoản admin mặc định (username: admin, password: admin)\n";
     }
 }
 
-// Original console-based login (DISABLED for GUI-only app)
-bool Account::login(std::string& outRole, std::string& outId) {
-    // This function is deprecated - use loginWithCredentials() instead
-    std::cerr << "Error: Console login is disabled. Use GUI login." << std::endl;
+bool Account::validateUsername(const std::string& username) {
+    if (username.length() < 3 || username.length() > 20) {
+        return false;
+    }
+    
+    for (char c : username) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '.') {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+bool Account::validatePassword(const std::string& password) {
+    return password.length() >= 6 && password.length() <= 50;
+}
+
+// ============================================================================
+// AUTHENTICATION
+// ============================================================================
+
+bool Account::loginWithCredentials(const std::string& inputUser, const std::string& inputPass, 
+                                   std::string& outRole, std::string& outId) {
+    if (inputUser.empty() || inputPass.empty()) {
+        std::cout << u8"Lỗi: Tên đăng nhập và mật khẩu không được để trống.\n";
+        return false;
+    }
+    
+    // Search through all role types
+    for (const char* roleName : {"Admin", "Doctor", "Patient"}) {
+        std::string roleStr(roleName);
+        std::ifstream idList("data/" + roleStr + ".txt");
+        
+        if (!idList.is_open()) {
+            continue;
+        }
+        
+        std::string currentId;
+        while (idList >> currentId) {
+            std::ifstream accountFile("data/" + roleStr + "/" + currentId + ".txt");
+            
+            if (!accountFile.is_open()) {
+                continue;
+            }
+            
+            std::string fileUser, filePass;
+            std::getline(accountFile, fileUser);
+            std::getline(accountFile, filePass);
+            accountFile.close();
+            
+            if (inputUser == fileUser && inputPass == filePass) {
+                // Authentication successful
+                this->role = roleStr;
+                this->id = currentId;
+                this->username = inputUser;
+                this->password = inputPass;
+                
+                outRole = roleStr;
+                outId = currentId;
+                
+                std::cout << u8"Đăng nhập thành công! Vai trò: " << roleStr 
+                         << u8", ID: " << currentId << "\n";
+                return true;
+            }
+        }
+        idList.close();
+    }
+    
+    std::cout << u8"Đăng nhập thất bại! Tên đăng nhập hoặc mật khẩu không đúng.\n";
     return false;
 }
 
-// NEW: GUI-compatible login
-bool Account::loginWithCredentials(const std::string& inputUser, const std::string& inputPass, 
-                                   std::string& outRole, std::string& outId) {
-    bool success = false;
-    for (auto roleName : {"Admin", "Doctor", "Patient"}) {
-        std::ifstream idList("data/" + std::string(roleName) + ".txt");
-        if (!idList.is_open()) continue;
-        std::string id;
-        while (idList >> id) {
-            std::ifstream file("data/" + std::string(roleName) + "/" + id + ".txt");
-            if (!file.is_open()) continue;
-            std::string fileUser, filePass;
-            std::getline(file, fileUser);
-            std::getline(file, filePass);
-            if (inputUser == fileUser && inputPass == filePass) {
-                // set current account state
-                role = roleName;
-                this->id = id;
-                username = inputUser;
-                password = inputPass;
-                outRole = roleName;
-                outId = id;
-                success = true;
-                break;
-            }
-        }
-        if (success) break;
+bool Account::registerWithCredentials(const std::string& inputUser, const std::string& inputPass,
+                                     const std::string& inputRole, std::string& outId) {
+    // Validate inputs
+    if (!validateUsername(inputUser)) {
+        std::cout << u8"Lỗi: Tên đăng nhập không hợp lệ (3-20 ký tự, chỉ chữ, số, _, .)\n";
+        return false;
     }
-    return success;
+    
+    if (!validatePassword(inputPass)) {
+        std::cout << u8"Lỗi: Mật khẩu phải có từ 6-50 ký tự.\n";
+        return false;
+    }
+    
+    // Normalize role
+    std::string normalizedRole = inputRole;
+    std::transform(normalizedRole.begin(), normalizedRole.end(), 
+                  normalizedRole.begin(), ::tolower);
+    
+    if (normalizedRole == "doctor") {
+        this->role = "Doctor";
+    } else if (normalizedRole == "patient") {
+        this->role = "Patient";
+    } else {
+        std::cout << u8"Lỗi: Vai trò không hợp lệ. Chỉ chấp nhận 'patient' hoặc 'doctor'.\n";
+        return false;
+    }
+    
+    // Check if username already exists in any role
+    if (usernameExists(inputUser)) {
+        std::cout << u8"Lỗi: Tên đăng nhập đã tồn tại.\n";
+        return false;
+    }
+    
+    // Create account
+    this->username = inputUser;
+    this->password = inputPass;
+    this->id = generateID(this->role);
+    
+    saveUserData(this->role, this->id);
+    appendIDToList(this->role, this->id);
+    
+    outId = this->id;
+    
+    std::cout << u8"Đăng ký thành công! ID: " << this->id 
+             << u8", Vai trò: " << this->role << "\n";
+    return true;
 }
 
 void Account::logout() {
-    std::cout << "Da dang xuat.\n";
+    std::cout << u8"Đã đăng xuất tài khoản: " << username << "\n";
+    
+    role.clear();
+    id.clear();
+    username.clear();
+    password.clear();
 }
 
-// Original console-based register (DISABLED for GUI-only app)
-void Account::registerAccount() {
-    // This function is deprecated - use registerWithCredentials() instead
-    std::cerr << "Error: Console registration is disabled. Use GUI registration." << std::endl;
-    return;
-}
-
-// NEW: GUI-compatible register
-bool Account::registerWithCredentials(const std::string& inputUser, const std::string& inputPass,
-                                     const std::string& inputRole, std::string& outId) {
-    // Validate role
-    std::string normalizedRole = inputRole;
-    for (auto &c : normalizedRole) c = std::tolower((unsigned char)c);
-    
-    if (normalizedRole == "doctor") {
-        role = "Doctor";
-    } else if (normalizedRole == "patient") {
-        role = "Patient";
-    } else {
-        return false; // Invalid role
+bool Account::changePassword(const std::string& oldPass, const std::string& newPass) {
+    if (this->password != oldPass) {
+        std::cout << u8"Lỗi: Mật khẩu cũ không đúng.\n";
+        return false;
     }
-
-    // Check if username already exists
-    for (auto roleName : {"Admin", "Doctor", "Patient"}) {
-        std::ifstream idList("data/" + std::string(roleName) + ".txt");
-        if (!idList.is_open()) continue;
-        std::string existingId;
-        while (idList >> existingId) {
-            std::ifstream file("data/" + std::string(roleName) + "/" + existingId + ".txt");
-            if (!file.is_open()) continue;
-            std::string fileUser;
-            std::getline(file, fileUser);
-            if (inputUser == fileUser) {
-                return false; // Username already exists
-            }
-        }
-    }
-
-    username = inputUser;
-    password = inputPass;
-
-    id = generateID(role);
-    saveUserData(role, id);
-    appendIDToList(role, id);
     
-    outId = id;
+    if (!validatePassword(newPass)) {
+        std::cout << u8"Lỗi: Mật khẩu mới phải có từ 6-50 ký tự.\n";
+        return false;
+    }
+    
+    this->password = newPass;
+    saveUserData(this->role, this->id);
+    
+    std::cout << u8"Đổi mật khẩu thành công!\n";
     return true;
 }
+
+bool Account::usernameExists(const std::string& username) const {
+    for (const char* roleName : {"Admin", "Doctor", "Patient"}) {
+        std::string roleStr(roleName);
+        std::ifstream idList("data/" + roleStr + ".txt");
+        
+        if (!idList.is_open()) {
+            continue;
+        }
+        
+        std::string existingId;
+        while (idList >> existingId) {
+            std::ifstream accountFile("data/" + roleStr + "/" + existingId + ".txt");
+            
+            if (!accountFile.is_open()) {
+                continue;
+            }
+            
+            std::string fileUser;
+            std::getline(accountFile, fileUser);
+            accountFile.close();
+            
+            if (username == fileUser) {
+                return true;
+            }
+        }
+        idList.close();
+    }
+    
+    return false;
+}
+
+// ============================================================================
+// PRIVATE HELPERS
+// ============================================================================
 
 std::string Account::generateID(const std::string& role) {
     std::string prefix;
@@ -122,34 +227,50 @@ std::string Account::generateID(const std::string& role) {
     if (role == "Patient") {
         prefix = "01";
     } else if (role == "Doctor") {
-        // For GUI/automatic registration, use default department code "01"
-        prefix = "0201";  // 02 = Doctor, 01 = Default department
+        prefix = "02";
     } else if (role == "Admin") {
         prefix = "00";
     }
 
     std::ifstream idList("data/" + role + ".txt");
     std::string lastID;
-    while (idList >> lastID) count++;
+    while (idList >> lastID) {
+        count++;
+    }
     idList.close();
 
     std::ostringstream oss;
-    oss << prefix << std::setw(2) << std::setfill('0') << (count + 1);
+    oss << prefix << std::setw(4) << std::setfill('0') << (count + 1);
     return oss.str();
 }
 
 void Account::saveUserData(const std::string& role, const std::string& id) {
     fs::create_directories("data/" + role);
+    
     std::ofstream file("data/" + role + "/" + id + ".txt");
+    if (!file.is_open()) {
+        std::cerr << u8"Lỗi: Không thể lưu dữ liệu người dùng.\n";
+        return;
+    }
+    
     file << username << "\n" << password << "\n";
     file.close();
 }
 
 void Account::appendIDToList(const std::string& role, const std::string& id) {
     std::ofstream list("data/" + role + ".txt", std::ios::app);
+    if (!list.is_open()) {
+        std::cerr << u8"Lỗi: Không thể cập nhật danh sách ID.\n";
+        return;
+    }
+    
     list << id << "\n";
     list.close();
 }
+
+// ============================================================================
+// OPERATORS & GETTERS
+// ============================================================================
 
 Account& Account::operator=(const Account& other) {
     if (this != &other) {
@@ -167,4 +288,8 @@ std::string Account::getUsername() const {
 
 std::string Account::getID() const {
     return id;
+}
+
+std::string Account::getRole() const {
+    return role;
 }

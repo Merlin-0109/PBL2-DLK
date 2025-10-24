@@ -1,4 +1,4 @@
-#include "lichkham.h"
+﻿#include "lichkham.h"
 
 LichKham::LichKham() {
     MaLichKham = "";

@@ -1,173 +1,119 @@
-#pragma once
+﻿#pragma once
 #include <SFML/Graphics.hpp>
 #include <string>
-#include <vector>
-#include <functional>
 #include <memory>
-#include <optional>
+#include <functional>
 #include "Account.h"
-#include "DataStore.h"
-#include "PatientService.h"
-#include "DoctorService.h"
 
-class ModernButton {
-private:
-    sf::RectangleShape shape;
-    sf::Text text;
-    sf::Color normalColor;
-    sf::Color hoverColor;
-    sf::Color pressColor;
-    bool isHovered;
-    bool isPressed;
-    std::function<void()> onClick;
-    float cornerRadius;
-
-public:
-    ModernButton(float x, float y, float width, float height, 
-                 const std::string& label, const sf::Font& font,
-                 sf::Color color = sf::Color(74, 144, 226));
-    void setOnClick(std::function<void()> callback);
-    void handleEvent(const sf::Event& event, const sf::RenderWindow& window);
-    void update();
-    void draw(sf::RenderWindow& window);
-};
-
-class ModernInputBox {
-private:
-    sf::RectangleShape box;
-    sf::Text text;
-    sf::Text label;
-    sf::Text placeholder;
-    std::string content;
-    bool isFocused;
-    bool isPassword;
-    bool showPassword;
-    sf::Clock blinkClock;
-    bool showCursor;
-    const sf::Font* fontPtr;
-    sf::RectangleShape eyeIcon;
-
-public:
-    ModernInputBox(float x, float y, float width, float height, 
-                   const std::string& labelText, const std::string& placeholderText,
-                   const sf::Font& font, bool password = false);
-    void handleEvent(const sf::Event& event, const sf::RenderWindow& window);
-    void update();
-    void draw(sf::RenderWindow& window);
-    std::string getContent() const { return content; }
-    void clear();
-    void setContent(const std::string& str);
-};
-
-class Card {
-private:
-    sf::RectangleShape shape;
-    sf::RectangleShape shadow;
-    sf::Text title;
-    sf::Text subtitle;
-    const sf::Font* fontPtr;
-
-public:
-    Card(float x, float y, float width, float height, 
-         const std::string& titleText, const std::string& subtitleText,
-         const sf::Font& font);
-    void draw(sf::RenderWindow& window);
-    sf::Vector2f getPosition() const { return shape.getPosition(); }
-    sf::Vector2f getSize() const { return shape.getSize(); }
-};
-
-class MessageBox {
-private:
-    sf::RectangleShape background;
-    sf::RectangleShape box;
-    sf::Text message;
-    sf::Text title;
-    ModernButton* okButton;
-    bool isVisible;
-    bool isSuccess;
-    const sf::Font* fontPtr;
-
-public:
-    MessageBox(const sf::Font& font);
-    ~MessageBox();
-    void show(const std::string& titleText, const std::string& msg, bool success = true);
-    void hide();
-    void handleEvent(const sf::Event& event, const sf::RenderWindow& window);
-    void update();
-    void draw(sf::RenderWindow& window);
-    bool visible() const { return isVisible; }
-};
-
-class AppointmentCard {
-private:
-    sf::RectangleShape shape;
-    sf::Text doctorName;
-    sf::Text dateTime;
-    sf::Text reason;
-    sf::Text status;
-    const sf::Font* fontPtr;
-
-public:
-    AppointmentCard(float x, float y, float width,
-                    const std::string& doctor, const std::string& dt,
-                    const std::string& reasonText, const std::string& statusText,
-                    const sf::Font& font);
-    void draw(sf::RenderWindow& window);
-};
-
+// Enum for different screens
 enum class Screen {
-    MAIN_MENU,
+    REGISTER_SELECT_ROLE,
+    REGISTER_INFO,
     LOGIN,
-    REGISTER,
-    PATIENT_MENU,
-    DOCTOR_MENU,
-    BOOK_APPOINTMENT,
-    VIEW_APPOINTMENTS,
-    UPDATE_PROFILE,
-    DOCTOR_LIST
+    UPDATE_PATIENT_INFO,
+    UPDATE_DOCTOR_INFO,
+    PATIENT_DASHBOARD,
+    DOCTOR_DASHBOARD
 };
 
-class HospitalGUI {
+// Enum for user role selection
+enum class UserRole {
+    NONE,
+    PATIENT,
+    DOCTOR
+};
+
+class GUI {
 private:
     sf::RenderWindow window;
     sf::Font font;
     Screen currentScreen;
+    UserRole selectedRole;
     
-    std::vector<std::unique_ptr<ModernButton>> buttons;
-    std::vector<std::unique_ptr<ModernInputBox>> inputBoxes;
-    std::unique_ptr<MessageBox> messageBox;
-    std::unique_ptr<Card> loginCard;
+    // Current user info after login/register
+    std::string currentUserId;
+    std::string currentUserRole;
     
-    Account account;
-    std::string currentRole;
-    std::string currentId;
-    bool isLoggedIn;
+    // Input fields data for registration (simplified)
+    std::string inputUsername;
+    std::string inputPassword;
+    std::string inputConfirmPassword;
+    std::string inputEmail;
     
-    std::vector<std::string> doctorIds;
-    int selectedDoctorIndex;
-    std::string selectedRegisterRole; // NEW: Store selected role for registration
+    // Additional fields for profile update
+    std::string inputFullName;
+    std::string inputPhone;
+    std::string inputAddress;
+    std::string inputDOB;
+    std::string inputGender;
+    std::string inputBloodType;
+    std::string inputCCCD;
+    std::string inputSpecialization;  // For Doctor
+    std::string inputFaculty;         // For Doctor
+    
+    // Active input field tracking
+    int activeInputField;
+    bool passwordVisible;
+    
+    // For text cursor blinking
+    sf::Clock cursorClock;
+    bool showCursor;
+
+    // Account system
+    Account accountSystem;
 
 public:
-    HospitalGUI();
+    GUI();
+    ~GUI();
+    
+    bool initialize();
     void run();
-
+    
 private:
-    void setupMainMenu();
-    void setupLoginScreen();
-    void setupRegisterScreen();
-    void setupPatientMenu();
-    void setupDoctorMenu();
-    void setupBookAppointment();
-    void setupDoctorList();
-    void setupViewAppointments();
-    void setupUpdateProfile();
-    
-    void performLogin();
-    void performRegister();
-    void bookAppointment();
-    
+    // Event handling
     void handleEvents();
-    void update();
+    void handleMouseClick(const sf::Vector2f& mousePos);
+    void handleTextInput(char32_t unicode);
+    void handleKeyPress(sf::Keyboard::Key key);
+    
+    // Screen rendering
     void render();
-    void drawModernBackground();
+    void renderRegisterSelectRole();
+    void renderRegisterInfo();
+    void renderLogin();
+    void renderUpdatePatientInfo();
+    void renderUpdateDoctorInfo();
+    void renderPatientDashboard();
+    void renderDoctorDashboard();
+    
+    // UI Helper functions
+    void drawRoundedRect(sf::Vector2f position, sf::Vector2f size, float radius, 
+                        sf::Color fillColor, sf::RenderWindow& window);
+    void drawButton(sf::Vector2f position, sf::Vector2f size, const std::string& text,
+                   sf::Color bgColor, sf::Color textColor, sf::RenderWindow& window);
+    bool isMouseOverRect(const sf::Vector2f& mousePos, const sf::Vector2f& rectPos, 
+                        const sf::Vector2f& rectSize);
+    void drawInputField(sf::Vector2f position, sf::Vector2f size, const std::string& label,
+                       const std::string& value, bool isActive, bool isPassword,
+                       sf::RenderWindow& window);
+    void drawRoleCard(sf::Vector2f position, sf::Vector2f size, const std::string& title,
+                     const std::string& description, const std::string& icon,
+                     bool isSelected, sf::RenderWindow& window);
+    
+    // Navigation
+    void switchToScreen(Screen newScreen);
+    void resetInputFields();
+    
+    // Registration logic
+    void completeRegistration();
+    bool validateRegistrationInputs();
+    
+    // Login logic
+    void completeLogin();
+    
+    // Data persistence
+    void loadPatientInfo();
+    void savePatientInfo();
+    void loadDoctorInfo();
+    void saveDoctorInfo();
 };

@@ -1,980 +1,900 @@
-// ============================================
-// File: src/GUI.cpp - Implementation
-// ============================================
-#include "GUI.h"
+﻿#include "GUI.h"
+#include "DataStore.h"
 #include <iostream>
-#include <cmath>
+#include <locale>
+#include <codecvt>
 
-// ModernButton Implementation
-ModernButton::ModernButton(float x, float y, float width, float height, 
-                           const std::string& label, const sf::Font& font, sf::Color color)
-    : text(font, label, 16), cornerRadius(8.0f) {
+// Helper function for SFML 3.x with UTF-8 support
+static sf::Text makeText(const sf::Font& font, const std::string& str, unsigned int size) {
+    sf::Text text(font);
+    text.setString(str);
+    text.setCharacterSize(size);
     
-    shape.setPosition({x, y});
-    shape.setSize({width, height});
-    normalColor = color;
-    hoverColor = sf::Color(color.r + 20, color.g + 20, color.b + 20);
-    pressColor = sf::Color(color.r - 20, color.g - 20, color.b - 20);
-    shape.setFillColor(normalColor);
+    // Enable smooth text rendering
+    text.setOutlineThickness(0);
+    text.setStyle(sf::Text::Regular);
     
-    text.setFillColor(sf::Color::White);
-    auto textBounds = text.getLocalBounds();
-    text.setOrigin({textBounds.size.x/2.0f, textBounds.size.y/2.0f});
-    text.setPosition({x + width/2.0f, y + height/2.0f});
-    
-    isHovered = false;
-    isPressed = false;
+    return text;
 }
 
-void ModernButton::setOnClick(std::function<void()> callback) {
-    onClick = callback;
-}
-
-void ModernButton::handleEvent(const sf::Event& event, const sf::RenderWindow& window) {
-    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-    sf::FloatRect bounds = shape.getGlobalBounds();
-    
-    isHovered = bounds.contains(sf::Vector2f(mousePos));
-    
-    if (const auto* mousePressed = event.getIf<sf::Event::MouseButtonPressed>()) {
-        if (mousePressed->button == sf::Mouse::Button::Left && isHovered) {
-            isPressed = true;
-        }
-    }
-    
-    if (const auto* mouseReleased = event.getIf<sf::Event::MouseButtonReleased>()) {
-        if (mouseReleased->button == sf::Mouse::Button::Left) {
-            if (isPressed && isHovered && onClick) {
-                onClick();
-            }
-            isPressed = false;
-        }
-    }
-}
-
-void ModernButton::update() {
-    if (isPressed) {
-        shape.setFillColor(pressColor);
-    } else if (isHovered) {
-        shape.setFillColor(hoverColor);
-    } else {
-        shape.setFillColor(normalColor);
-    }
-}
-
-void ModernButton::draw(sf::RenderWindow& window) {
-    window.draw(shape);
-    window.draw(text);
-}
-
-// ModernInputBox Implementation
-ModernInputBox::ModernInputBox(float x, float y, float width, float height, 
-                               const std::string& labelText, const std::string& placeholderText,
-                               const sf::Font& font, bool password)
-    : text(font, "", 16), label(font, labelText, 14), 
-      placeholder(font, placeholderText, 16), fontPtr(&font) {
-    
-    box.setPosition({x, y});
-    box.setSize({width, height});
-    box.setFillColor(sf::Color(249, 250, 251));
-    box.setOutlineThickness(1);
-    box.setOutlineColor(sf::Color(209, 213, 219));
-    
-    text.setFillColor(sf::Color(17, 24, 39));
-    text.setPosition({x + 15, y + height/2 - 10});
-    
-    placeholder.setFillColor(sf::Color(156, 163, 175));
-    placeholder.setPosition({x + 15, y + height/2 - 10});
-    
-    label.setFillColor(sf::Color(75, 85, 99));
-    label.setPosition({x, y - 25});
-    
-    isFocused = false;
-    isPassword = password;
-    showPassword = false;
-    content = "";
-    showCursor = true;
-    
-    if (password) {
-        eyeIcon.setSize({20, 20});
-        eyeIcon.setFillColor(sf::Color(156, 163, 175));
-        eyeIcon.setPosition({x + width - 35, y + height/2 - 10});
-    }
-}
-
-void ModernInputBox::handleEvent(const sf::Event& event, const sf::RenderWindow& window) {
-    if (const auto* mousePressed = event.getIf<sf::Event::MouseButtonPressed>()) {
-        sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-        isFocused = box.getGlobalBounds().contains(sf::Vector2f(mousePos));
-        
-        if (isFocused) {
-            box.setOutlineColor(sf::Color(74, 144, 226));
-            box.setOutlineThickness(2);
-        } else {
-            box.setOutlineColor(sf::Color(209, 213, 219));
-            box.setOutlineThickness(1);
-        }
-        
-        // Check eye icon click
-        if (isPassword && eyeIcon.getGlobalBounds().contains(sf::Vector2f(mousePos))) {
-            showPassword = !showPassword;
-            if (showPassword) {
-                text.setString(content);
-            } else {
-                text.setString(std::string(content.length(), '*'));
-            }
-        }
-    }
-    
-    if (isFocused) {
-        if (const auto* textEntered = event.getIf<sf::Event::TextEntered>()) {
-            if (textEntered->unicode == 8) { // Backspace
-                if (!content.empty()) {
-                    content.pop_back();
-                }
-            } else if (textEntered->unicode == 13) { // Enter
-                isFocused = false;
-                box.setOutlineColor(sf::Color(209, 213, 219));
-                box.setOutlineThickness(1);
-            } else if (textEntered->unicode < 128 && textEntered->unicode >= 32) {
-                content += static_cast<char>(textEntered->unicode);
-            }
-            
-            if (isPassword && !showPassword) {
-                text.setString(std::string(content.length(), '*'));
-            } else {
-                text.setString(content);
-            }
-        }
-    }
-}
-
-void ModernInputBox::update() {
-    if (blinkClock.getElapsedTime().asSeconds() > 0.5f) {
-        showCursor = !showCursor;
-        blinkClock.restart();
-    }
-}
-
-void ModernInputBox::draw(sf::RenderWindow& window) {
-    window.draw(label);
-    window.draw(box);
-    
-    if (content.empty() && !isFocused) {
-        window.draw(placeholder);
-    } else {
-        window.draw(text);
-    }
-    
-    if (isFocused && showCursor) {
-        sf::RectangleShape cursor({2, 20});
-        cursor.setFillColor(sf::Color(74, 144, 226));
-        auto textBounds = text.getGlobalBounds();
-        cursor.setPosition({textBounds.position.x + textBounds.size.x + 2, text.getPosition().y});
-        window.draw(cursor);
-    }
-    
-    if (isPassword) {
-        // Draw eye icon (simplified)
-        sf::CircleShape eye(8);
-        eye.setFillColor(sf::Color::Transparent);
-        eye.setOutlineThickness(2);
-        eye.setOutlineColor(sf::Color(156, 163, 175));
-        eye.setPosition(eyeIcon.getPosition());
-        window.draw(eye);
-    }
-}
-
-void ModernInputBox::clear() {
-    content = "";
-    text.setString("");
-}
-
-void ModernInputBox::setContent(const std::string& str) {
-    content = str;
-    if (isPassword && !showPassword) {
-        text.setString(std::string(str.length(), '*'));
-    } else {
-        text.setString(str);
-    }
-}
-
-// Card Implementation
-Card::Card(float x, float y, float width, float height, 
-           const std::string& titleText, const std::string& subtitleText,
-           const sf::Font& font)
-    : title(font, titleText, 28), subtitle(font, subtitleText, 16), fontPtr(&font) {
-    
-    // Shadow
-    shadow.setPosition({x + 4, y + 4});
-    shadow.setSize({width, height});
-    shadow.setFillColor(sf::Color(0, 0, 0, 20));
-    
-    // Main shape
-    shape.setPosition({x, y});
-    shape.setSize({width, height});
-    shape.setFillColor(sf::Color::White);
-    
-    // Title
-    title.setFillColor(sf::Color(17, 24, 39));
-    auto titleBounds = title.getLocalBounds();
-    title.setPosition({x + width/2 - titleBounds.size.x/2, y + 40});
-    
-    // Subtitle
-    subtitle.setFillColor(sf::Color(107, 114, 128));
-    auto subtitleBounds = subtitle.getLocalBounds();
-    subtitle.setPosition({x + width/2 - subtitleBounds.size.x/2, y + 80});
-}
-
-void Card::draw(sf::RenderWindow& window) {
-    window.draw(shadow);
-    window.draw(shape);
-    window.draw(title);
-    window.draw(subtitle);
-}
-
-// MessageBox Implementation
-MessageBox::MessageBox(const sf::Font& font) 
-    : title(font, "", 22), message(font, "", 16), fontPtr(&font) {
-    
-    background.setSize({1200, 800});
-    background.setFillColor(sf::Color(0, 0, 0, 150));
-    
-    box.setSize({450, 220});
-    box.setPosition({375, 290});
-    box.setFillColor(sf::Color::White);
-    
-    title.setFillColor(sf::Color(17, 24, 39));
-    title.setPosition({400, 310});
-    
-    message.setFillColor(sf::Color(75, 85, 99));
-    message.setPosition({400, 360});
-    
-    okButton = new ModernButton(475, 430, 120, 45, "OK", font);
-    okButton->setOnClick([this]() { this->hide(); });
-    
-    isVisible = false;
-}
-
-MessageBox::~MessageBox() {
-    delete okButton;
-}
-
-void MessageBox::show(const std::string& titleText, const std::string& msg, bool success) {
-    title.setString(titleText);
-    message.setString(msg);
-    isSuccess = success;
-    isVisible = true;
-}
-
-void MessageBox::hide() {
-    isVisible = false;
-}
-
-void MessageBox::handleEvent(const sf::Event& event, const sf::RenderWindow& window) {
-    if (isVisible) {
-        okButton->handleEvent(event, window);
-        
-        if (const auto* keyPressed = event.getIf<sf::Event::KeyPressed>()) {
-            if (keyPressed->code == sf::Keyboard::Key::Enter || 
-                keyPressed->code == sf::Keyboard::Key::Escape) {
-                hide();
-            }
-        }
-    }
-}
-
-void MessageBox::update() {
-    if (isVisible) {
-        okButton->update();
-    }
-}
-
-void MessageBox::draw(sf::RenderWindow& window) {
-    if (isVisible) {
-        window.draw(background);
-        window.draw(box);
-        window.draw(title);
-        window.draw(message);
-        okButton->draw(window);
-    }
-}
-
-// AppointmentCard Implementation
-AppointmentCard::AppointmentCard(float x, float y, float width,
-                                 const std::string& doctor, const std::string& dt,
-                                 const std::string& reasonText, const std::string& statusText,
-                                 const sf::Font& font)
-    : doctorName(font, doctor, 18), dateTime(font, dt, 14),
-      reason(font, reasonText, 14), status(font, statusText, 12), fontPtr(&font) {
-    
-    shape.setPosition({x, y});
-    shape.setSize({width, 120});
-    shape.setFillColor(sf::Color(249, 250, 251));
-    shape.setOutlineThickness(1);
-    shape.setOutlineColor(sf::Color(229, 231, 235));
-    
-    doctorName.setFillColor(sf::Color(17, 24, 39));
-    doctorName.setPosition({x + 20, y + 15});
-    
-    dateTime.setFillColor(sf::Color(107, 114, 128));
-    dateTime.setPosition({x + 20, y + 45});
-    
-    reason.setFillColor(sf::Color(75, 85, 99));
-    reason.setPosition({x + 20, y + 70});
-    
-    status.setFillColor(sf::Color(16, 185, 129));
-    status.setPosition({x + width - 120, y + 15});
-}
-
-void AppointmentCard::draw(sf::RenderWindow& window) {
-    window.draw(shape);
-    window.draw(doctorName);
-    window.draw(dateTime);
-    window.draw(reason);
-    window.draw(status);
-}
-
-// HospitalGUI Implementation
-HospitalGUI::HospitalGUI() 
-    : window(sf::VideoMode({1200, 800}), "Datchikham - He Thong Quan Ly Benh Vien"),
-      currentScreen(Screen::MAIN_MENU),
-      isLoggedIn(false),
-      selectedDoctorIndex(-1),
-      selectedRegisterRole("Patient") { // Default to Patient
-    
-    if (!font.openFromFile("assets/arial.ttf")) {
-        std::cerr << "Error: Cannot load font" << std::endl;
-        throw std::runtime_error("Font loading failed");
-    }
-    
+GUI::GUI() 
+    : window(sf::VideoMode({1280, 800}), u8"Đặt Lịch Khám - Hệ Thống Đặt Lịch Khám Bệnh"),
+      currentScreen(Screen::REGISTER_SELECT_ROLE),
+      selectedRole(UserRole::NONE),
+      activeInputField(-1),
+      passwordVisible(false),
+      showCursor(true) {
     window.setFramerateLimit(60);
+}
+
+GUI::~GUI() {}
+
+bool GUI::initialize() {
+    // Use fonts that support Vietnamese properly
+    std::vector<std::string> fontPaths = {
+        "C:/Windows/Fonts/segoeui.ttf",      // Segoe UI - best for Vietnamese
+        "C:/Windows/Fonts/arialni.ttf",      // Arial Unicode
+        "C:/Windows/Fonts/tahomabd.ttf",     // Tahoma
+        "C:/Windows/Fonts/arial.ttf"         // Fallback
+    };
+    
+    bool fontLoaded = false;
+    for (const auto& path : fontPaths) {
+        if (font.openFromFile(path)) {
+            std::cout << "Font loaded: " << path << std::endl;
+            fontLoaded = true;
+            break;
+        }
+    }
+    
+    if (!fontLoaded) {
+        std::cerr << "ERROR: Could not load font!" << std::endl;
+        return false;
+    }
+    
     Account::ensureDefaultAdminExists();
     DataStore::ensureAppointmentsDirExists();
-    
-    messageBox = std::make_unique<MessageBox>(font);
-    setupMainMenu();
+    return true;
 }
 
-void HospitalGUI::setupMainMenu() {
-    buttons.clear();
-    inputBoxes.clear();
-    loginCard.reset();
+void GUI::run() {
+    std::cout << "Running main loop..." << std::endl;
     
-    auto loginBtn = std::make_unique<ModernButton>(450, 350, 300, 55, "DANG NHAP", font);
-    loginBtn->setOnClick([this]() {
-        currentScreen = Screen::LOGIN;
-        setupLoginScreen();
-    });
-    buttons.push_back(std::move(loginBtn));
+    // Configure window for smooth performance
+    window.setFramerateLimit(60);
+    window.setVerticalSyncEnabled(false);
     
-    auto registerBtn = std::make_unique<ModernButton>(450, 420, 300, 55, "DANG KY", font, sf::Color(52, 211, 153));
-    registerBtn->setOnClick([this]() {
-        currentScreen = Screen::REGISTER;
-        setupRegisterScreen();
-    });
-    buttons.push_back(std::move(registerBtn));
+    sf::Clock deltaClock;
     
-    auto exitBtn = std::make_unique<ModernButton>(450, 490, 300, 55, "THOAT", font, sf::Color(239, 68, 68));
-    exitBtn->setOnClick([this]() {
-        window.close();
-    });
-    buttons.push_back(std::move(exitBtn));
-}
-
-void HospitalGUI::setupLoginScreen() {
-    buttons.clear();
-    inputBoxes.clear();
-    
-    loginCard = std::make_unique<Card>(375, 180, 450, 500, "Sign In", 
-                                       "Enter your credentials to continue", font);
-    
-    auto cardPos = loginCard->getPosition();
-    float centerX = cardPos.x + 50;
-    
-    auto usernameBox = std::make_unique<ModernInputBox>(centerX, 310, 350, 50, 
-                                                         "Email or Username", "Enter your email",
-                                                         font);
-    inputBoxes.push_back(std::move(usernameBox));
-    
-    auto passwordBox = std::make_unique<ModernInputBox>(centerX, 400, 350, 50, 
-                                                         "Password", "Enter your password",
-                                                         font, true);
-    inputBoxes.push_back(std::move(passwordBox));
-    
-    auto loginBtn = std::make_unique<ModernButton>(centerX, 490, 350, 50, "Sign In", font);
-    loginBtn->setOnClick([this]() { performLogin(); });
-    buttons.push_back(std::move(loginBtn));
-    
-    auto backBtn = std::make_unique<ModernButton>(centerX, 560, 170, 45, "Back", font, sf::Color(156, 163, 175));
-    backBtn->setOnClick([this]() {
-        currentScreen = Screen::MAIN_MENU;
-        setupMainMenu();
-    });
-    buttons.push_back(std::move(backBtn));
-}
-
-void HospitalGUI::setupRegisterScreen() {
-    buttons.clear();
-    inputBoxes.clear();
-    selectedRegisterRole = "Patient"; // Reset to default
-    
-    loginCard = std::make_unique<Card>(375, 100, 450, 650, "Create Account", 
-                                       "Register to get started", font);
-    
-    auto cardPos = loginCard->getPosition();
-    float centerX = cardPos.x + 50;
-    
-    // Role selection label
-    // Will be drawn in render()
-    
-    // Role selection buttons
-    auto patientRoleBtn = std::make_unique<ModernButton>(centerX, 230, 165, 45, "Patient", font);
-    patientRoleBtn->setOnClick([this]() {
-        selectedRegisterRole = "Patient";
-    });
-    buttons.push_back(std::move(patientRoleBtn));
-    
-    auto doctorRoleBtn = std::make_unique<ModernButton>(centerX + 185, 230, 165, 45, "Doctor", font, sf::Color(52, 211, 153));
-    doctorRoleBtn->setOnClick([this]() {
-        selectedRegisterRole = "Doctor";
-    });
-    buttons.push_back(std::move(doctorRoleBtn));
-    
-    auto usernameBox = std::make_unique<ModernInputBox>(centerX, 310, 350, 50, 
-                                                         "Username", "Choose a username",
-                                                         font);
-    inputBoxes.push_back(std::move(usernameBox));
-    
-    auto emailBox = std::make_unique<ModernInputBox>(centerX, 390, 350, 50, 
-                                                      "Email", "Enter your email",
-                                                      font);
-    inputBoxes.push_back(std::move(emailBox));
-    
-    auto passwordBox = std::make_unique<ModernInputBox>(centerX, 470, 350, 50, 
-                                                         "Password", "Create a password",
-                                                         font, true);
-    inputBoxes.push_back(std::move(passwordBox));
-    
-    auto confirmBox = std::make_unique<ModernInputBox>(centerX, 550, 350, 50, 
-                                                        "Confirm Password", "Confirm your password",
-                                                        font, true);
-    inputBoxes.push_back(std::move(confirmBox));
-    
-    auto registerBtn = std::make_unique<ModernButton>(centerX, 630, 350, 50, "Create Account", font, sf::Color(52, 211, 153));
-    registerBtn->setOnClick([this]() { performRegister(); });
-    buttons.push_back(std::move(registerBtn));
-    
-    auto backBtn = std::make_unique<ModernButton>(centerX + 90, 700, 170, 45, "Back", font, sf::Color(156, 163, 175));
-    backBtn->setOnClick([this]() {
-        currentScreen = Screen::MAIN_MENU;
-        setupMainMenu();
-    });
-    buttons.push_back(std::move(backBtn));
-}
-
-void HospitalGUI::setupPatientMenu() {
-    buttons.clear();
-    inputBoxes.clear();
-    loginCard.reset();
-    
-    auto bookBtn = std::make_unique<ModernButton>(350, 250, 500, 65, "DAT LICH KHAM", font);
-    bookBtn->setOnClick([this]() {
-        currentScreen = Screen::DOCTOR_LIST;
-        setupDoctorList();
-    });
-    buttons.push_back(std::move(bookBtn));
-    
-    auto viewBtn = std::make_unique<ModernButton>(350, 330, 500, 65, "XEM LICH KHAM", font, sf::Color(52, 211, 153));
-    viewBtn->setOnClick([this]() {
-        currentScreen = Screen::VIEW_APPOINTMENTS;
-        setupViewAppointments();
-    });
-    buttons.push_back(std::move(viewBtn));
-    
-    auto profileBtn = std::make_unique<ModernButton>(350, 410, 500, 65, "CAP NHAT THONG TIN", font, sf::Color(251, 146, 60));
-    profileBtn->setOnClick([this]() {
-        currentScreen = Screen::UPDATE_PROFILE;
-        setupUpdateProfile();
-    });
-    buttons.push_back(std::move(profileBtn));
-    
-    auto logoutBtn = std::make_unique<ModernButton>(350, 490, 500, 65, "DANG XUAT", font, sf::Color(239, 68, 68));
-    logoutBtn->setOnClick([this]() {
-        isLoggedIn = false;
-        currentScreen = Screen::MAIN_MENU;
-        setupMainMenu();
-    });
-    buttons.push_back(std::move(logoutBtn));
-}
-
-void HospitalGUI::setupDoctorMenu() {
-    buttons.clear();
-    inputBoxes.clear();
-    loginCard.reset();
-    
-    auto viewBtn = std::make_unique<ModernButton>(350, 300, 500, 65, "XEM LICH HEN", font);
-    viewBtn->setOnClick([this]() {
-        currentScreen = Screen::VIEW_APPOINTMENTS;
-        setupViewAppointments();
-    });
-    buttons.push_back(std::move(viewBtn));
-    
-    auto profileBtn = std::make_unique<ModernButton>(350, 380, 500, 65, "CAP NHAT THONG TIN", font, sf::Color(251, 146, 60));
-    profileBtn->setOnClick([this]() {
-        currentScreen = Screen::UPDATE_PROFILE;
-        setupUpdateProfile();
-    });
-    buttons.push_back(std::move(profileBtn));
-    
-    auto logoutBtn = std::make_unique<ModernButton>(350, 460, 500, 65, "DANG XUAT", font, sf::Color(239, 68, 68));
-    logoutBtn->setOnClick([this]() {
-        isLoggedIn = false;
-        currentScreen = Screen::MAIN_MENU;
-        setupMainMenu();
-    });
-    buttons.push_back(std::move(logoutBtn));
-}
-
-void HospitalGUI::setupBookAppointment() {
-    buttons.clear();
-    inputBoxes.clear();
-    loginCard.reset();
-    
-    loginCard = std::make_unique<Card>(300, 150, 600, 520, "Dat Lich Kham", 
-                                       "Nhap thong tin lich kham", font);
-    
-    float centerX = 350;
-    
-    auto dateBox = std::make_unique<ModernInputBox>(centerX, 270, 500, 50, 
-                                                     "Ngay kham", "YYYY-MM-DD (VD: 2025-01-15)",
-                                                     font);
-    inputBoxes.push_back(std::move(dateBox));
-    
-    auto timeBox = std::make_unique<ModernInputBox>(centerX, 350, 500, 50, 
-                                                     "Gio kham", "HH:MM (VD: 14:30)",
-                                                     font);
-    inputBoxes.push_back(std::move(timeBox));
-    
-    auto reasonBox = std::make_unique<ModernInputBox>(centerX, 430, 500, 50, 
-                                                       "Ly do kham", "Nhap ly do kham benh",
-                                                       font);
-    inputBoxes.push_back(std::move(reasonBox));
-    
-    auto bookBtn = std::make_unique<ModernButton>(centerX, 510, 240, 50, "Dat Lich", font);
-    bookBtn->setOnClick([this]() { bookAppointment(); });
-    buttons.push_back(std::move(bookBtn));
-    
-    auto backBtn = std::make_unique<ModernButton>(centerX + 260, 510, 240, 50, "Quay Lai", font, sf::Color(156, 163, 175));
-    backBtn->setOnClick([this]() {
-        currentScreen = Screen::DOCTOR_LIST;
-        setupDoctorList();
-    });
-    buttons.push_back(std::move(backBtn));
-}
-
-void HospitalGUI::setupDoctorList() {
-    buttons.clear();
-    inputBoxes.clear();
-    loginCard.reset();
-    
-    doctorIds = DoctorService::getDoctorIDs();
-    
-    if (doctorIds.empty()) {
-        messageBox->show("Thong Bao", "Hien khong co bac si nao trong he thong!", false);
-        currentScreen = Screen::PATIENT_MENU;
-        setupPatientMenu();
-        return;
-    }
-    
-    loginCard = std::make_unique<Card>(200, 140, 800, 580, "Chon Bac Si", 
-                                       "Click vao bac si de dat lich kham", font);
-    
-    // Display doctors as clickable cards
-    float yPos = 250;
-    for (size_t i = 0; i < doctorIds.size() && i < 5; i++) {
-        auto info = DataStore::readDoctorInfo(doctorIds[i]);
-        std::string btnLabel = "Dr. " + info.name;
-        if (!info.specialization.empty()) {
-            btnLabel += " - " + info.specialization;
-        }
-        
-        auto doctorBtn = std::make_unique<ModernButton>(250, yPos, 700, 60, btnLabel, font, sf::Color(52, 211, 153));
-        doctorBtn->setOnClick([this, i]() {
-            selectedDoctorIndex = i;
-            currentScreen = Screen::BOOK_APPOINTMENT;
-            setupBookAppointment();
-        });
-        buttons.push_back(std::move(doctorBtn));
-        yPos += 70;
-    }
-    
-    auto backBtn = std::make_unique<ModernButton>(400, 650, 400, 50, "Quay Lai", font, sf::Color(156, 163, 175));
-    backBtn->setOnClick([this]() {
-        currentScreen = Screen::PATIENT_MENU;
-        setupPatientMenu();
-    });
-    buttons.push_back(std::move(backBtn));
-}
-
-void HospitalGUI::setupViewAppointments() {
-    buttons.clear();
-    inputBoxes.clear();
-    loginCard.reset();
-    
-    std::vector<DataStore::AppointmentDetails> appointments;
-    
-    if (currentRole == "Patient") {
-        appointments = PatientService::getAppointments(currentId);
-    } else if (currentRole == "Doctor") {
-        appointments = DoctorService::getAppointments(currentId);
-    }
-    
-    if (appointments.empty()) {
-        loginCard = std::make_unique<Card>(350, 250, 500, 200, "Khong Co Lich Kham", 
-                                           "Ban chua co lich kham nao", font);
-    } else {
-        loginCard = std::make_unique<Card>(150, 140, 900, 580, "Danh Sach Lich Kham", 
-                                           "Cac lich kham cua ban", font);
-        
-        // Display appointments (max 4)
-        float yPos = 260;
-        for (size_t i = 0; i < appointments.size() && i < 4; i++) {
-            const auto& appt = appointments[i];
-            
-            sf::RectangleShape card({850, 100});
-            card.setPosition({175, yPos});
-            card.setFillColor(sf::Color(249, 250, 251));
-            card.setOutlineThickness(1);
-            card.setOutlineColor(sf::Color(229, 231, 235));
-            
-            std::string info = currentRole == "Patient" ? 
-                "Bac si: " + appt.doctorId : "Benh nhan: " + appt.patientId;
-            
-            yPos += 110;
-        }
-    }
-    
-    auto backBtn = std::make_unique<ModernButton>(400, 680, 400, 50, "Quay Lai", font, sf::Color(156, 163, 175));
-    backBtn->setOnClick([this]() {
-        if (currentRole == "Patient") {
-            currentScreen = Screen::PATIENT_MENU;
-            setupPatientMenu();
-        } else {
-            currentScreen = Screen::DOCTOR_MENU;
-            setupDoctorMenu();
-        }
-    });
-    buttons.push_back(std::move(backBtn));
-}
-
-void HospitalGUI::setupUpdateProfile() {
-    buttons.clear();
-    inputBoxes.clear();
-    loginCard.reset();
-    
-    loginCard = std::make_unique<Card>(300, 150, 600, 520, "Cap Nhat Thong Tin", 
-                                       "Chinh sua thong tin ca nhan", font);
-    
-    float centerX = 350;
-    
-    if (currentRole == "Patient") {
-        auto info = DataStore::readPatientInfo(currentId);
-        
-        auto nameBox = std::make_unique<ModernInputBox>(centerX, 270, 500, 50, 
-                                                         "Ho va ten", "Nhap ho va ten",
-                                                         font);
-        nameBox->setContent(info.name);
-        inputBoxes.push_back(std::move(nameBox));
-        
-        auto phoneBox = std::make_unique<ModernInputBox>(centerX, 350, 500, 50, 
-                                                          "So dien thoai", "Nhap so dien thoai",
-                                                          font);
-        phoneBox->setContent(info.phone);
-        inputBoxes.push_back(std::move(phoneBox));
-        
-        auto emailBox = std::make_unique<ModernInputBox>(centerX, 430, 500, 50, 
-                                                          "Email", "Nhap email",
-                                                          font);
-        emailBox->setContent(info.email);
-        inputBoxes.push_back(std::move(emailBox));
-        
-    } else if (currentRole == "Doctor") {
-        auto info = DataStore::readDoctorInfo(currentId);
-        
-        auto nameBox = std::make_unique<ModernInputBox>(centerX, 270, 500, 50, 
-                                                         "Ho va ten", "Nhap ho va ten",
-                                                         font);
-        nameBox->setContent(info.name);
-        inputBoxes.push_back(std::move(nameBox));
-        
-        auto phoneBox = std::make_unique<ModernInputBox>(centerX, 350, 500, 50, 
-                                                          "So dien thoai", "Nhap so dien thoai",
-                                                          font);
-        phoneBox->setContent(info.phone);
-        inputBoxes.push_back(std::move(phoneBox));
-        
-        auto specBox = std::make_unique<ModernInputBox>(centerX, 430, 500, 50, 
-                                                         "Chuyen khoa", "Nhap chuyen khoa",
-                                                         font);
-        specBox->setContent(info.specialization);
-        inputBoxes.push_back(std::move(specBox));
-    }
-    
-    auto saveBtn = std::make_unique<ModernButton>(centerX, 510, 240, 50, "Luu", font, sf::Color(52, 211, 153));
-    saveBtn->setOnClick([this]() {
-        if (inputBoxes.size() < 3) return;
-        
-        if (currentRole == "Patient") {
-            DataStore::PatientInfo info;
-            info.name = inputBoxes[0]->getContent();
-            info.phone = inputBoxes[1]->getContent();
-            info.email = inputBoxes[2]->getContent();
-            
-            if (DataStore::writePatientInfo(currentId, info)) {
-                messageBox->show("Thanh Cong", "Da cap nhat thong tin!", true);
-            } else {
-                messageBox->show("Loi", "Khong the cap nhat!", false);
-            }
-        } else if (currentRole == "Doctor") {
-            DataStore::DoctorInfo info;
-            info.name = inputBoxes[0]->getContent();
-            info.phone = inputBoxes[1]->getContent();
-            info.specialization = inputBoxes[2]->getContent();
-            
-            if (DataStore::writeDoctorInfo(currentId, info)) {
-                messageBox->show("Thanh Cong", "Da cap nhat thong tin!", true);
-            } else {
-                messageBox->show("Loi", "Khong the cap nhat!", false);
-            }
-        }
-    });
-    buttons.push_back(std::move(saveBtn));
-    
-    auto backBtn = std::make_unique<ModernButton>(centerX + 260, 510, 240, 50, "Quay Lai", font, sf::Color(156, 163, 175));
-    backBtn->setOnClick([this]() {
-        if (currentRole == "Patient") {
-            currentScreen = Screen::PATIENT_MENU;
-            setupPatientMenu();
-        } else {
-            currentScreen = Screen::DOCTOR_MENU;
-            setupDoctorMenu();
-        }
-    });
-    buttons.push_back(std::move(backBtn));
-}
-
-void HospitalGUI::performLogin() {
-    if (inputBoxes.size() < 2) return;
-    
-    std::string username = inputBoxes[0]->getContent();
-    std::string password = inputBoxes[1]->getContent();
-    
-    if (username.empty() || password.empty()) {
-        messageBox->show("Loi", "Vui long nhap day du thong tin!", false);
-        return;
-    }
-    
-    // Use new GUI-compatible login method
-    if (account.loginWithCredentials(username, password, currentRole, currentId)) {
-        isLoggedIn = true;
-        messageBox->show("Thanh Cong", "Dang nhap thanh cong!", true);
-        
-        if (currentRole == "Patient") {
-            currentScreen = Screen::PATIENT_MENU;
-            setupPatientMenu();
-        } else if (currentRole == "Doctor") {
-            currentScreen = Screen::DOCTOR_MENU;
-            setupDoctorMenu();
-        } else if (currentRole == "Admin") {
-            currentScreen = Screen::PATIENT_MENU;
-            setupPatientMenu();
-        }
-    } else {
-        messageBox->show("Loi", "Ten dang nhap hoac mat khau sai!", false);
+    while (window.isOpen()) {
+        handleEvents();
+        render();
     }
 }
 
-void HospitalGUI::performRegister() {
-    if (inputBoxes.size() < 4) return;
-    
-    std::string username = inputBoxes[0]->getContent();
-    std::string email = inputBoxes[1]->getContent();
-    std::string password = inputBoxes[2]->getContent();
-    std::string confirm = inputBoxes[3]->getContent();
-    
-    if (username.empty() || email.empty() || password.empty()) {
-        messageBox->show("Loi", "Vui long nhap day du thong tin!", false);
-        return;
-    }
-    
-    if (password != confirm) {
-        messageBox->show("Loi", "Mat khau xac nhan khong khop!", false);
-        return;
-    }
-    
-    if (password.length() < 6) {
-        messageBox->show("Loi", "Mat khau phai co it nhat 6 ky tu!", false);
-        return;
-    }
-    
-    // Call actual register function
-    account.registerAccount();
-    messageBox->show("Thanh Cong", "Dang ky tai khoan thanh cong!", true);
-    currentScreen = Screen::MAIN_MENU;
-    setupMainMenu();
-}
-
-void HospitalGUI::bookAppointment() {
-    if (inputBoxes.size() < 3) return;
-    if (selectedDoctorIndex < 0 || selectedDoctorIndex >= static_cast<int>(doctorIds.size())) {
-        messageBox->show("Loi", "Vui long chon bac si!", false);
-        return;
-    }
-    
-    std::string date = inputBoxes[0]->getContent();
-    std::string time = inputBoxes[1]->getContent();
-    std::string reason = inputBoxes[2]->getContent();
-    
-    if (date.empty() || time.empty() || reason.empty()) {
-        messageBox->show("Loi", "Vui long nhap day du thong tin!", false);
-        return;
-    }
-    
-    // Basic date validation (YYYY-MM-DD)
-    if (date.length() != 10 || date[4] != '-' || date[7] != '-') {
-        messageBox->show("Loi", "Ngay khong dung dinh dang! (YYYY-MM-DD)", false);
-        return;
-    }
-    
-    // Basic time validation (HH:MM)
-    if (time.length() != 5 || time[2] != ':') {
-        messageBox->show("Loi", "Gio khong dung dinh dang! (HH:MM)", false);
-        return;
-    }
-    
-    std::string apptId;
-    std::string selectedDoctorId = doctorIds[selectedDoctorIndex];
-    
-    if (PatientService::bookAppointment(currentId, selectedDoctorId, date, time, reason, apptId)) {
-        messageBox->show("Thanh Cong", "Dat lich thanh cong!\nMa: " + apptId, true);
-        currentScreen = Screen::PATIENT_MENU;
-        setupPatientMenu();
-    } else {
-        messageBox->show("Loi", "Khong the dat lich kham!", false);
-    }
-}
-
-void HospitalGUI::handleEvents() {
+void GUI::handleEvents() {
     while (std::optional<sf::Event> event = window.pollEvent()) {
         if (event->is<sf::Event::Closed>()) {
             window.close();
         }
-        
-        if (messageBox->visible()) {
-            messageBox->handleEvent(*event, window);
-            continue;
+        else if (const auto* mouseButtonPressed = event->getIf<sf::Event::MouseButtonPressed>()) {
+            if (mouseButtonPressed->button == sf::Mouse::Button::Left) {
+                sf::Vector2f mousePos(static_cast<float>(mouseButtonPressed->position.x), 
+                                     static_cast<float>(mouseButtonPressed->position.y));
+                handleMouseClick(mousePos);
+            }
+        }
+        else if (const auto* textEntered = event->getIf<sf::Event::TextEntered>()) {
+            handleTextInput(textEntered->unicode);
+        }
+        else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+            handleKeyPress(keyPressed->code);
+        }
+    }
+    
+    if (cursorClock.getElapsedTime().asSeconds() > 0.5f) {
+        showCursor = !showCursor;
+        cursorClock.restart();
+    }
+}
+
+void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
+    switch (currentScreen) {
+        case Screen::REGISTER_SELECT_ROLE: {
+            if (isMouseOverRect(mousePos, {340, 320}, {300, 140})) {
+                selectedRole = UserRole::PATIENT;
+            }
+            else if (isMouseOverRect(mousePos, {640, 320}, {300, 140})) {
+                selectedRole = UserRole::DOCTOR;
+            }
+            else if (isMouseOverRect(mousePos, {440, 500}, {200, 50})) {
+                if (selectedRole != UserRole::NONE) {
+                    switchToScreen(Screen::REGISTER_INFO);
+                }
+            }
+            else if (isMouseOverRect(mousePos, {450, 570}, {300, 30})) {
+                switchToScreen(Screen::LOGIN);
+            }
+            break;
         }
         
-        for (auto& button : buttons) {
-            button->handleEvent(*event, window);
+        case Screen::REGISTER_INFO: {
+            for (int i = 0; i < 4; i++) {
+                float yPos = 250 + i * 70;
+                if (isMouseOverRect(mousePos, {340, yPos}, {600, 45})) {
+                    activeInputField = i;
+                    return;
+                }
+            }
+            if (isMouseOverRect(mousePos, {440, 550}, {200, 50})) {
+                completeRegistration();
+            }
+            else if (isMouseOverRect(mousePos, {440, 620}, {200, 30})) {
+                switchToScreen(Screen::REGISTER_SELECT_ROLE);
+            }
+            activeInputField = -1;
+            break;
         }
         
-        for (auto& inputBox : inputBoxes) {
-            inputBox->handleEvent(*event, window);
+        case Screen::LOGIN: {
+            if (isMouseOverRect(mousePos, {400, 300}, {480, 45})) {
+                activeInputField = 0;
+            }
+            else if (isMouseOverRect(mousePos, {400, 370}, {480, 45})) {
+                activeInputField = 1;
+            }
+            else if (isMouseOverRect(mousePos, {540, 450}, {200, 50})) {
+                completeLogin();
+            }
+            else if (isMouseOverRect(mousePos, {450, 520}, {300, 30})) {
+                switchToScreen(Screen::REGISTER_SELECT_ROLE);
+            }
+            else {
+                activeInputField = -1;
+            }
+            break;
+        }
+        
+        case Screen::UPDATE_PATIENT_INFO: {
+            for (int i = 0; i < 8; i++) {
+                float yPos = 180 + i * 65;
+                if (isMouseOverRect(mousePos, {340, yPos}, {600, 45})) {
+                    activeInputField = i;
+                    return;
+                }
+            }
+            if (isMouseOverRect(mousePos, {440, 730}, {200, 50})) {
+                savePatientInfo();
+                switchToScreen(Screen::PATIENT_DASHBOARD);
+            }
+            activeInputField = -1;
+            break;
+        }
+        
+        case Screen::UPDATE_DOCTOR_INFO: {
+            for (int i = 0; i < 9; i++) {
+                float yPos = 160 + i * 60;
+                if (isMouseOverRect(mousePos, {340, yPos}, {600, 45})) {
+                    activeInputField = i;
+                    return;
+                }
+            }
+            if (isMouseOverRect(mousePos, {440, 740}, {200, 50})) {
+                saveDoctorInfo();
+                switchToScreen(Screen::DOCTOR_DASHBOARD);
+            }
+            activeInputField = -1;
+            break;
+        }
+        
+        case Screen::PATIENT_DASHBOARD: {
+            if (isMouseOverRect(mousePos, {440, 350}, {400, 50})) {
+                loadPatientInfo();
+                switchToScreen(Screen::UPDATE_PATIENT_INFO);
+            }
+            break;
+        }
+        
+        case Screen::DOCTOR_DASHBOARD: {
+            if (isMouseOverRect(mousePos, {440, 350}, {400, 50})) {
+                loadDoctorInfo();
+                switchToScreen(Screen::UPDATE_DOCTOR_INFO);
+            }
+            break;
         }
     }
 }
 
-void HospitalGUI::update() {
-    messageBox->update();
+// [CONTINUED IN NEXT PART - handleTextInput]
+void GUI::handleTextInput(char32_t unicode) {
+    if (activeInputField < 0) return;
     
-    for (auto& button : buttons) {
-        button->update();
+    if (unicode == 8) {  // Backspace
+        std::string* target = nullptr;
+        switch (currentScreen) {
+            case Screen::REGISTER_INFO:
+                if (activeInputField == 0) target = &inputUsername;
+                else if (activeInputField == 1) target = &inputPassword;
+                else if (activeInputField == 2) target = &inputConfirmPassword;
+                else if (activeInputField == 3) target = &inputEmail;
+                break;
+            case Screen::UPDATE_PATIENT_INFO:
+                if (activeInputField == 0) target = &inputFullName;
+                else if (activeInputField == 1) target = &inputPhone;
+                else if (activeInputField == 2) target = &inputEmail;
+                else if (activeInputField == 3) target = &inputAddress;
+                else if (activeInputField == 4) target = &inputDOB;
+                else if (activeInputField == 5) target = &inputGender;
+                else if (activeInputField == 6) target = &inputBloodType;
+                else if (activeInputField == 7) target = &inputCCCD;
+                break;
+            case Screen::UPDATE_DOCTOR_INFO:
+                if (activeInputField == 0) target = &inputFullName;
+                else if (activeInputField == 1) target = &inputPhone;
+                else if (activeInputField == 2) target = &inputEmail;
+                else if (activeInputField == 3) target = &inputAddress;
+                else if (activeInputField == 4) target = &inputDOB;
+                else if (activeInputField == 5) target = &inputGender;
+                else if (activeInputField == 6) target = &inputCCCD;
+                else if (activeInputField == 7) target = &inputSpecialization;
+                else if (activeInputField == 8) target = &inputFaculty;
+                break;
+            case Screen::LOGIN:
+                if (activeInputField == 0) target = &inputUsername;
+                else if (activeInputField == 1) target = &inputPassword;
+                break;
+            default: break;
+        }
+        if (target && !target->empty()) target->pop_back();
+        return;
     }
     
-    for (auto& inputBox : inputBoxes) {
-        inputBox->update();
+    if (unicode >= 32 && unicode < 127) {  // Printable chars
+        std::string* target = nullptr;
+        switch (currentScreen) {
+            case Screen::REGISTER_INFO:
+                if (activeInputField == 0) target = &inputUsername;
+                else if (activeInputField == 1) target = &inputPassword;
+                else if (activeInputField == 2) target = &inputConfirmPassword;
+                else if (activeInputField == 3) target = &inputEmail;
+                break;
+            case Screen::UPDATE_PATIENT_INFO:
+                if (activeInputField == 0) target = &inputFullName;
+                else if (activeInputField == 1) target = &inputPhone;
+                else if (activeInputField == 2) target = &inputEmail;
+                else if (activeInputField == 3) target = &inputAddress;
+                else if (activeInputField == 4) target = &inputDOB;
+                else if (activeInputField == 5) target = &inputGender;
+                else if (activeInputField == 6) target = &inputBloodType;
+                else if (activeInputField == 7) target = &inputCCCD;
+                break;
+            case Screen::UPDATE_DOCTOR_INFO:
+                if (activeInputField == 0) target = &inputFullName;
+                else if (activeInputField == 1) target = &inputPhone;
+                else if (activeInputField == 2) target = &inputEmail;
+                else if (activeInputField == 3) target = &inputAddress;
+                else if (activeInputField == 4) target = &inputDOB;
+                else if (activeInputField == 5) target = &inputGender;
+                else if (activeInputField == 6) target = &inputCCCD;
+                else if (activeInputField == 7) target = &inputSpecialization;
+                else if (activeInputField == 8) target = &inputFaculty;
+                break;
+            case Screen::LOGIN:
+                if (activeInputField == 0) target = &inputUsername;
+                else if (activeInputField == 1) target = &inputPassword;
+                break;
+            default: break;
+        }
+        if (target) *target += static_cast<char>(unicode);
     }
 }
 
-void HospitalGUI::render() {
-    drawModernBackground();
-    
-    // Draw logo/title
-    sf::Text logo(font, "DAT LICH KHAM", 42);
-    logo.setFillColor(sf::Color(74, 144, 226));
-    logo.setPosition({420, 50});
-    window.draw(logo);
-    
-    sf::Text tagline(font, "Hospital Management System", 16);
-    tagline.setFillColor(sf::Color(107, 114, 128));
-    tagline.setPosition({470, 100});
-    window.draw(tagline);
-    
-    // Draw card if exists
-    if (loginCard) {
-        loginCard->draw(window);
-        
-        // If on register screen, show role selection label
-        if (currentScreen == Screen::REGISTER) {
-            sf::Text roleLabel(font, "Select Role:", 16);
-            roleLabel.setFillColor(sf::Color(75, 85, 99));
-            roleLabel.setPosition({425, 205});
-            window.draw(roleLabel);
-            
-            // Show selected role
-            sf::Text selectedRole(font, "Selected: " + selectedRegisterRole, 14);
-            selectedRole.setFillColor(sf::Color(74, 144, 226));
-            selectedRole.setPosition({625, 245});
-            window.draw(selectedRole);
+void GUI::handleKeyPress(sf::Keyboard::Key key) {
+    if (key == sf::Keyboard::Key::Enter) {
+        if (currentScreen == Screen::LOGIN) {
+            completeLogin();
+        } else if (currentScreen == Screen::REGISTER_INFO) {
+            completeRegistration();
         }
     }
+}
+
+void GUI::render() {
+    window.clear(sf::Color(240, 248, 255));  // Light blue background
     
-    // Draw input boxes
-    for (auto& inputBox : inputBoxes) {
-        inputBox->draw(window);
+    switch (currentScreen) {
+        case Screen::REGISTER_SELECT_ROLE:
+            renderRegisterSelectRole();
+            break;
+        case Screen::REGISTER_INFO:
+            renderRegisterInfo();
+            break;
+        case Screen::LOGIN:
+            renderLogin();
+            break;
+        case Screen::UPDATE_PATIENT_INFO:
+            renderUpdatePatientInfo();
+            break;
+        case Screen::UPDATE_DOCTOR_INFO:
+            renderUpdateDoctorInfo();
+            break;
+        case Screen::PATIENT_DASHBOARD:
+            renderPatientDashboard();
+            break;
+        case Screen::DOCTOR_DASHBOARD:
+            renderDoctorDashboard();
+            break;
     }
-    
-    // Draw buttons
-    for (auto& button : buttons) {
-        button->draw(window);
-    }
-    
-    // Draw message box (always on top)
-    messageBox->draw(window);
     
     window.display();
 }
 
-void HospitalGUI::drawModernBackground() {
-    // Gradient background
-    sf::RectangleShape bg1({1200, 400});
-    bg1.setPosition({0, 0});
-    bg1.setFillColor(sf::Color(240, 242, 245));
-    window.draw(bg1);
+// [RENDER FUNCTIONS - PART 1]
+void GUI::renderRegisterSelectRole() {
+    // Title bar - gradient effect with darker blue
+    sf::RectangleShape titleBar({1280, 70});
+    titleBar.setPosition({0, 0});
+    titleBar.setFillColor(sf::Color(30, 136, 229));  // Material Blue
+    window.draw(titleBar);
     
-    sf::RectangleShape bg2({1200, 400});
-    bg2.setPosition({0, 400});
-    bg2.setFillColor(sf::Color(249, 250, 251));
-    window.draw(bg2);
+    sf::Text appTitle = makeText(font, u8"Đặt LỊCH KHÁM", 32);
+    appTitle.setPosition({40, 18});
+    appTitle.setFillColor(sf::Color::White);
+    appTitle.setStyle(sf::Text::Bold);
+    window.draw(appTitle);
     
-    // Decorative circles
-    sf::CircleShape circle1(150);
-    circle1.setPosition({-50, -50});
-    circle1.setFillColor(sf::Color(74, 144, 226, 30));
-    window.draw(circle1);
+    // Central panel with shadow effect
+    sf::RectangleShape shadow({740, 670});
+    shadow.setPosition({275, 125});
+    shadow.setFillColor(sf::Color(200, 200, 200, 100));
+    window.draw(shadow);
     
-    sf::CircleShape circle2(200);
-    circle2.setPosition({1000, 600});
-    circle2.setFillColor(sf::Color(52, 211, 153, 30));
-    window.draw(circle2);
+    sf::RectangleShape panel({720, 650});
+    panel.setPosition({280, 120});
+    panel.setFillColor(sf::Color::White);
+    window.draw(panel);
+    
+    // Medical cross icon - larger and centered
+    sf::Text logo = makeText(font, "+", 96);
+    logo.setPosition({600, 140});
+    logo.setFillColor(sf::Color(30, 136, 229));
+    logo.setStyle(sf::Text::Bold);
+    window.draw(logo);
+    
+    // Title with better spacing
+    sf::Text title = makeText(font, u8"Đăng Ký Tài Khoản Mới", 36);
+    sf::FloatRect titleBounds = title.getLocalBounds();
+    title.setPosition({640 - titleBounds.size.x / 2, 250});
+    title.setFillColor(sf::Color(33, 33, 33));
+    title.setStyle(sf::Text::Bold);
+    window.draw(title);
+    
+    // Subtitle
+    sf::Text subtitle = makeText(font, u8"Vui lòng chọn loại tài khoản", 18);
+    sf::FloatRect subtitleBounds = subtitle.getLocalBounds();
+    subtitle.setPosition({640 - subtitleBounds.size.x / 2, 300});
+    subtitle.setFillColor(sf::Color(100, 100, 100));
+    window.draw(subtitle);
+    
+    // Role cards with better design
+    drawRoleCard({340, 340}, {280, 130}, u8"Bệnh Nhân", 
+                 u8"Đặt lịch khám bệnh", "P", 
+                 selectedRole == UserRole::PATIENT, window);
+    drawRoleCard({660, 340}, {280, 130}, u8"Bác Sĩ",
+                 u8"Quản lý lịch khám", "D",
+                 selectedRole == UserRole::DOCTOR, window);
+    
+    // Continue button with gradient
+    sf::Color buttonColor = (selectedRole != UserRole::NONE) ? 
+                           sf::Color(76, 175, 80) : sf::Color(189, 189, 189);
+    drawButton({440, 520}, {200, 55}, u8"Tiếp Tục", buttonColor, sf::Color::White, window);
+    
+    // Login link
+    sf::Text loginLink = makeText(font, u8"Đã có tài khoản? Đăng Nhập", 16);
+    loginLink.setPosition({450, 600});
+    loginLink.setFillColor(sf::Color(30, 136, 229));
+    window.draw(loginLink);
 }
 
-void HospitalGUI::run() {
-    while (window.isOpen()) {
-        handleEvents();
-        update();
-        render();
+void GUI::renderRegisterInfo() {
+    // Title bar
+    sf::RectangleShape titleBar({1280, 70});
+    titleBar.setPosition({0, 0});
+    titleBar.setFillColor(sf::Color(30, 136, 229));
+    window.draw(titleBar);
+    
+    std::string roleText = (selectedRole == UserRole::PATIENT) ? u8"Bệnh Nhân" : u8"Bác Sĩ";
+    sf::Text appTitle = makeText(font, u8"Đăng Ký - " + roleText, 28);
+    appTitle.setPosition({40, 20});
+    appTitle.setFillColor(sf::Color::White);
+    appTitle.setStyle(sf::Text::Bold);
+    window.draw(appTitle);
+    
+    // Panel
+    sf::RectangleShape panel({720, 530});
+    panel.setPosition({280, 130});
+    panel.setFillColor(sf::Color::White);
+    window.draw(panel);
+    
+    sf::Text title = makeText(font, u8"Thông Tin Đăng Ký", 32);
+    sf::FloatRect titleBounds = title.getLocalBounds();
+    title.setPosition({640 - titleBounds.size.x / 2, 160});
+    title.setFillColor(sf::Color(33, 33, 33));
+    title.setStyle(sf::Text::Bold);
+    window.draw(title);
+    
+    sf::Text subtitle = makeText(font, u8"Vui lòng điền đầy đủ thông tin", 16);
+    sf::FloatRect subtitleBounds = subtitle.getLocalBounds();
+    subtitle.setPosition({640 - subtitleBounds.size.x / 2, 200});
+    subtitle.setFillColor(sf::Color(120, 120, 120));
+    window.draw(subtitle);
+    
+    // Input fields - simplified to 4 fields
+    float startY = 250;
+    float spacing = 70;
+    
+    drawInputField({340, startY}, {600, 50}, u8"Tên Đăng Nhập *", inputUsername,
+                   activeInputField == 0, false, window);
+    drawInputField({340, startY + spacing}, {600, 50}, u8"Mật Khẩu *", inputPassword,
+                   activeInputField == 1, true, window);
+    drawInputField({340, startY + spacing * 2}, {600, 50}, u8"Xác Nhận Mật Khẩu *", 
+                   inputConfirmPassword, activeInputField == 2, true, window);
+    drawInputField({340, startY + spacing * 3}, {600, 50}, "Email *", inputEmail,
+                   activeInputField == 3, false, window);
+    
+    // Register button
+    drawButton({440, 550}, {200, 55}, u8"Đăng Ký", 
+               sf::Color(76, 175, 80), sf::Color::White, window);
+    
+    // Back link
+    sf::Text backText = makeText(font, "< Quay Lại", 16);
+    sf::FloatRect backBounds = backText.getLocalBounds();
+    backText.setPosition({640 - backBounds.size.x / 2, 625});
+    backText.setFillColor(sf::Color(30, 136, 229));
+    window.draw(backText);
+}
+
+// [CONTINUED - PART 2]
+void GUI::renderLogin() {
+    sf::RectangleShape titleBar({1280, 70});
+    titleBar.setPosition({0, 0});
+    titleBar.setFillColor(sf::Color(30, 136, 229));
+    window.draw(titleBar);
+    
+    sf::Text appTitle = makeText(font, u8"Đăng Nhập", 28);
+    appTitle.setPosition({40, 20});
+    appTitle.setFillColor(sf::Color::White);
+    appTitle.setStyle(sf::Text::Bold);
+    window.draw(appTitle);
+    
+    sf::RectangleShape panel({600, 380});
+    panel.setPosition({340, 210});
+    panel.setFillColor(sf::Color::White);
+    window.draw(panel);
+    
+    sf::Text title = makeText(font, u8"Chào Mừng Trở Lại", 32);
+    sf::FloatRect titleBounds = title.getLocalBounds();
+    title.setPosition({640 - titleBounds.size.x / 2, 240});
+    title.setFillColor(sf::Color(33, 33, 33));
+    title.setStyle(sf::Text::Bold);
+    window.draw(title);
+    
+    drawInputField({400, 300}, {480, 50}, u8"Tên Đăng Nhập", inputUsername,
+                   activeInputField == 0, false, window);
+    drawInputField({400, 370}, {480, 50}, u8"Mật Khẩu", inputPassword,
+                   activeInputField == 1, true, window);
+    
+    drawButton({540, 450}, {200, 55}, u8"Đăng Nhập",
+               sf::Color(30, 136, 229), sf::Color::White, window);
+    
+    sf::Text registerLink = makeText(font, u8"Chưa có tài khoản? Đăng Ký", 16);
+    sf::FloatRect linkBounds = registerLink.getLocalBounds();
+    registerLink.setPosition({640 - linkBounds.size.x / 2, 530});
+    registerLink.setFillColor(sf::Color(30, 136, 229));
+    window.draw(registerLink);
+}
+
+void GUI::renderUpdatePatientInfo() {
+    sf::RectangleShape titleBar({1280, 70});
+    titleBar.setPosition({0, 0});
+    titleBar.setFillColor(sf::Color(30, 136, 229));
+    window.draw(titleBar);
+    
+    sf::Text appTitle = makeText(font, u8"Cập Nhật Thông Tin Bệnh Nhân", 28);
+    appTitle.setPosition({40, 20});
+    appTitle.setFillColor(sf::Color::White);
+    appTitle.setStyle(sf::Text::Bold);
+    window.draw(appTitle);
+    
+    sf::RectangleShape panel({720, 650});
+    panel.setPosition({280, 100});
+    panel.setFillColor(sf::Color::White);
+    window.draw(panel);
+    
+    sf::Text title = makeText(font, u8"Thông Tin Ca Nhan", 28);
+    title.setPosition({490, 130});
+    title.setFillColor(sf::Color(33, 33, 33));
+    title.setStyle(sf::Text::Bold);
+    window.draw(title);
+    
+    float startY = 180;
+    float spacing = 65;
+    
+    drawInputField({340, startY}, {600, 50}, u8"Họ và tên *", inputFullName,
+                   activeInputField == 0, false, window);
+    drawInputField({340, startY + spacing}, {600, 50}, u8"Số điện thoại *", inputPhone,
+                   activeInputField == 1, false, window);
+    drawInputField({340, startY + spacing * 2}, {600, 50}, "Email *", inputEmail,
+                   activeInputField == 2, false, window);
+    drawInputField({340, startY + spacing * 3}, {600, 50}, u8"Địa chỉ", inputAddress,
+                   activeInputField == 3, false, window);
+    drawInputField({340, startY + spacing * 4}, {600, 50}, u8"Ngày sinh (DD/MM/YYYY)", inputDOB,
+                   activeInputField == 4, false, window);
+    drawInputField({340, startY + spacing * 5}, {600, 50}, u8"Giới tính", inputGender,
+                   activeInputField == 5, false, window);
+    drawInputField({340, startY + spacing * 6}, {600, 50}, u8"Nhóm máu", inputBloodType,
+                   activeInputField == 6, false, window);
+    drawInputField({340, startY + spacing * 7}, {600, 50}, "CCCD", inputCCCD,
+                   activeInputField == 7, false, window);
+    
+    drawButton({440, 730}, {200, 55}, "Luu Thông Tin",
+               sf::Color(76, 175, 80), sf::Color::White, window);
+}
+
+void GUI::renderUpdateDoctorInfo() {
+    sf::RectangleShape titleBar({1280, 70});
+    titleBar.setPosition({0, 0});
+    titleBar.setFillColor(sf::Color(30, 136, 229));
+    window.draw(titleBar);
+    
+    sf::Text appTitle = makeText(font, u8"Cập Nhật Thông Tin Bác Sĩ", 28);
+    appTitle.setPosition({40, 20});
+    appTitle.setFillColor(sf::Color::White);
+    appTitle.setStyle(sf::Text::Bold);
+    window.draw(appTitle);
+    
+    sf::RectangleShape panel({720, 690});
+    panel.setPosition({280, 90});
+    panel.setFillColor(sf::Color::White);
+    window.draw(panel);
+    
+    sf::Text title = makeText(font, u8"Thông Tin Ca Nhan", 28);
+    title.setPosition({490, 120});
+    title.setFillColor(sf::Color(33, 33, 33));
+    title.setStyle(sf::Text::Bold);
+    window.draw(title);
+    
+    float startY = 160;
+    float spacing = 60;
+    
+    drawInputField({340, startY}, {600, 50}, u8"Họ và tên *", inputFullName,
+                   activeInputField == 0, false, window);
+    drawInputField({340, startY + spacing}, {600, 50}, u8"Số điện thoại *", inputPhone,
+                   activeInputField == 1, false, window);
+    drawInputField({340, startY + spacing * 2}, {600, 50}, "Email *", inputEmail,
+                   activeInputField == 2, false, window);
+    drawInputField({340, startY + spacing * 3}, {600, 50}, u8"Địa chỉ", inputAddress,
+                   activeInputField == 3, false, window);
+    drawInputField({340, startY + spacing * 4}, {600, 50}, u8"Ngày sinh (DD/MM/YYYY)", inputDOB,
+                   activeInputField == 4, false, window);
+    drawInputField({340, startY + spacing * 5}, {600, 50}, u8"Giới tính", inputGender,
+                   activeInputField == 5, false, window);
+    drawInputField({340, startY + spacing * 6}, {600, 50}, "CCCD", inputCCCD,
+                   activeInputField == 6, false, window);
+    drawInputField({340, startY + spacing * 7}, {600, 50}, u8"Chuyên môn *", inputSpecialization,
+                   activeInputField == 7, false, window);
+    drawInputField({340, startY + spacing * 8}, {600, 50}, "Khoa *", inputFaculty,
+                   activeInputField == 8, false, window);
+    
+    drawButton({440, 740}, {200, 55}, "Luu Thông Tin",
+               sf::Color(76, 175, 80), sf::Color::White, window);
+}
+
+void GUI::renderPatientDashboard() {
+    sf::RectangleShape titleBar({1280, 70});
+    titleBar.setPosition({0, 0});
+    titleBar.setFillColor(sf::Color(30, 136, 229));
+    window.draw(titleBar);
+    
+    sf::Text appTitle = makeText(font, "Dashboard - Bệnh Nhân", 28);
+    appTitle.setPosition({40, 20});
+    appTitle.setFillColor(sf::Color::White);
+    appTitle.setStyle(sf::Text::Bold);
+    window.draw(appTitle);
+    
+    sf::Text welcomeText = makeText(font, u8"Chào Mừng, " + inputUsername + "!", 32);
+    welcomeText.setPosition({400, 200});
+    welcomeText.setFillColor(sf::Color(33, 33, 33));
+    welcomeText.setStyle(sf::Text::Bold);
+    window.draw(welcomeText);
+    
+    sf::Text idText = makeText(font, "ID: " + currentUserId, 20);
+    idText.setPosition({400, 250});
+    idText.setFillColor(sf::Color(100, 100, 100));
+    window.draw(idText);
+    
+    drawButton({440, 350}, {400, 55}, u8"Cập Nhật Thông Tin Ca Nhan",
+               sf::Color(30, 136, 229), sf::Color::White, window);
+}
+
+void GUI::renderDoctorDashboard() {
+    sf::RectangleShape titleBar({1280, 70});
+    titleBar.setPosition({0, 0});
+    titleBar.setFillColor(sf::Color(30, 136, 229));
+    window.draw(titleBar);
+    
+    sf::Text appTitle = makeText(font, "Dashboard - Bác Sĩ", 28);
+    appTitle.setPosition({40, 20});
+    appTitle.setFillColor(sf::Color::White);
+    appTitle.setStyle(sf::Text::Bold);
+    window.draw(appTitle);
+    
+    sf::Text welcomeText = makeText(font, u8"Chào Mừng Bác Sĩ, " + inputUsername + "!", 32);
+    welcomeText.setPosition({350, 200});
+    welcomeText.setFillColor(sf::Color(33, 33, 33));
+    welcomeText.setStyle(sf::Text::Bold);
+    window.draw(welcomeText);
+    
+    sf::Text idText = makeText(font, "ID: " + currentUserId, 20);
+    idText.setPosition({400, 250});
+    idText.setFillColor(sf::Color(100, 100, 100));
+    window.draw(idText);
+    
+    drawButton({440, 350}, {400, 55}, u8"Cập Nhật Thông Tin Ca Nhan",
+               sf::Color(30, 136, 229), sf::Color::White, window);
+}
+
+// Helper drawing functions
+void GUI::drawRoundedRect(sf::Vector2f position, sf::Vector2f size, float radius,
+                          sf::Color fillColor, sf::RenderWindow& win) {
+    sf::RectangleShape rect(size);
+    rect.setPosition(position);
+    rect.setFillColor(fillColor);
+    win.draw(rect);
+}
+
+void GUI::drawButton(sf::Vector2f position, sf::Vector2f size, const std::string& text,
+                    sf::Color bgColor, sf::Color textColor, sf::RenderWindow& win) {
+    sf::RectangleShape button(size);
+    button.setPosition(position);
+    button.setFillColor(bgColor);
+    win.draw(button);
+    
+    sf::Text buttonText = makeText(font, text, 20);
+    buttonText.setFillColor(textColor);
+    buttonText.setStyle(sf::Text::Bold);
+    
+    sf::FloatRect textBounds = buttonText.getLocalBounds();
+    buttonText.setOrigin({textBounds.size.x / 2.0f, textBounds.size.y / 2.0f});
+    buttonText.setPosition({position.x + size.x / 2.0f, position.y + size.y / 2.0f});
+    win.draw(buttonText);
+}
+
+bool GUI::isMouseOverRect(const sf::Vector2f& mousePos, const sf::Vector2f& rectPos,
+                          const sf::Vector2f& rectSize) {
+    return mousePos.x >= rectPos.x && mousePos.x <= rectPos.x + rectSize.x &&
+           mousePos.y >= rectPos.y && mousePos.y <= rectPos.y + rectSize.y;
+}
+
+void GUI::drawInputField(sf::Vector2f position, sf::Vector2f size, const std::string& label,
+                        const std::string& value, bool isActive, bool isPassword,
+                        sf::RenderWindow& win) {
+    sf::Text labelText = makeText(font, label, 14);
+    labelText.setPosition({position.x, position.y - 22});
+    labelText.setFillColor(sf::Color(80, 80, 80));
+    win.draw(labelText);
+    
+    sf::RectangleShape inputBox(size);
+    inputBox.setPosition(position);
+    inputBox.setFillColor(sf::Color(250, 250, 250));
+    inputBox.setOutlineThickness(2);
+    inputBox.setOutlineColor(isActive ? sf::Color(30, 136, 229) : sf::Color(220, 220, 220));
+    win.draw(inputBox);
+    
+    std::string displayValue = value;
+    if (isPassword && !value.empty()) {
+        displayValue = std::string(value.length(), '*');
+    }
+    
+    sf::Text valueText = makeText(font, displayValue, 16);
+    valueText.setPosition({position.x + 15, position.y + 15});
+    valueText.setFillColor(sf::Color(50, 50, 50));
+    win.draw(valueText);
+    
+    if (isActive && showCursor) {
+        sf::FloatRect bounds = valueText.getLocalBounds();
+        sf::RectangleShape cursor({2, 30});
+        cursor.setPosition({position.x + 15 + bounds.size.x + 2, position.y + 10});
+        cursor.setFillColor(sf::Color(50, 50, 50));
+        win.draw(cursor);
     }
 }
+
+void GUI::drawRoleCard(sf::Vector2f position, sf::Vector2f size, const std::string& title,
+                      const std::string& description, const std::string& icon,
+                      bool isSelected, sf::RenderWindow& win) {
+    sf::RectangleShape card(size);
+    card.setPosition(position);
+    card.setFillColor(sf::Color::White);
+    card.setOutlineThickness(3);
+    card.setOutlineColor(isSelected ? sf::Color(30, 136, 229) : sf::Color(230, 230, 230));
+    win.draw(card);
+    
+    sf::Text iconText = makeText(font, icon, 48);
+    iconText.setPosition({position.x + 25, position.y + 15});
+    iconText.setFillColor(sf::Color(30, 136, 229));
+    iconText.setStyle(sf::Text::Bold);
+    win.draw(iconText);
+    
+    sf::CircleShape radioOuter(12);
+    radioOuter.setPosition({position.x + size.x - 40, position.y + 20});
+    radioOuter.setFillColor(sf::Color::White);
+    radioOuter.setOutlineThickness(2);
+    radioOuter.setOutlineColor(isSelected ? sf::Color(30, 136, 229) : sf::Color(180, 180, 180));
+    win.draw(radioOuter);
+    
+    if (isSelected) {
+        sf::CircleShape radioInner(7);
+        radioInner.setPosition({position.x + size.x - 35, position.y + 25});
+        radioInner.setFillColor(sf::Color(30, 136, 229));
+        win.draw(radioInner);
+    }
+    
+    sf::Text titleText = makeText(font, title, 22);
+    titleText.setPosition({position.x + 25, position.y + 70});
+    titleText.setFillColor(sf::Color(33, 33, 33));
+    titleText.setStyle(sf::Text::Bold);
+    win.draw(titleText);
+    
+    sf::Text descText = makeText(font, description, 14);
+    descText.setPosition({position.x + 25, position.y + 100});
+    descText.setFillColor(sf::Color(120, 120, 120));
+    win.draw(descText);
+}
+
+void GUI::switchToScreen(Screen newScreen) {
+    currentScreen = newScreen;
+    activeInputField = -1;
+    
+    if (newScreen == Screen::REGISTER_SELECT_ROLE) {
+        resetInputFields();
+        selectedRole = UserRole::NONE;
+    }
+}
+
+void GUI::resetInputFields() {
+    inputUsername.clear();
+    inputPassword.clear();
+    inputConfirmPassword.clear();
+    inputEmail.clear();
+    inputFullName.clear();
+    inputPhone.clear();
+    inputAddress.clear();
+    inputDOB.clear();
+    inputGender.clear();
+    inputBloodType.clear();
+    inputCCCD.clear();
+    inputSpecialization.clear();
+    inputFaculty.clear();
+}
+
+void GUI::completeRegistration() {
+    if (inputUsername.empty() || inputPassword.empty() || inputEmail.empty()) {
+        std::cout << u8"Vui lòng điền đầy đủ thông tin!" << std::endl;
+        return;
+    }
+    
+    if (inputPassword != inputConfirmPassword) {
+        std::cout << u8"Mật khẩu không khớp!" << std::endl;
+        return;
+    }
+    
+    std::string role = (selectedRole == UserRole::PATIENT) ? "Patient" : "Doctor";
+    std::string generatedId;
+    
+    bool success = accountSystem.registerWithCredentials(inputUsername, inputPassword, role, generatedId);
+    
+    if (success) {
+        currentUserId = generatedId;
+        currentUserRole = role;
+        
+        // Save email to account file
+        std::ofstream emailFile("data/" + role + "/" + generatedId + "_email.txt");
+        if (emailFile.is_open()) {
+            emailFile << inputEmail;
+            emailFile.close();
+        }
+        
+        std::cout << u8"Đăng ký thành công! ID: " << generatedId << std::endl;
+        
+        // After registration, go to update info screen
+        if (selectedRole == UserRole::PATIENT) {
+            inputEmail = inputEmail;  // Keep email
+            switchToScreen(Screen::UPDATE_PATIENT_INFO);
+        } else {
+            inputEmail = inputEmail;
+            switchToScreen(Screen::UPDATE_DOCTOR_INFO);
+        }
+    } else {
+        std::cout << u8"Đăng ký thất bại! Tên đăng nhập đã tồn tại." << std::endl;
+    }
+}
+
+bool GUI::validateRegistrationInputs() {
+    return !inputUsername.empty() && !inputPassword.empty() && 
+           !inputEmail.empty() && (inputPassword == inputConfirmPassword);
+}
+
+void GUI::completeLogin() {
+    std::string outRole, outId;
+    bool success = accountSystem.loginWithCredentials(inputUsername, inputPassword, outRole, outId);
+    
+    if (success) {
+        currentUserId = outId;
+        currentUserRole = outRole;
+        
+        std::cout << u8"Đăng nhập thành công! Role: " << outRole << ", ID: " << outId << std::endl;
+        
+        if (outRole == "Patient") {
+            switchToScreen(Screen::PATIENT_DASHBOARD);
+        } else if (outRole == "Doctor") {
+            switchToScreen(Screen::DOCTOR_DASHBOARD);
+        } else {
+            switchToScreen(Screen::PATIENT_DASHBOARD);
+        }
+    } else {
+        std::cout << u8"Đăng nhập thất bại!" << std::endl;
+    }
+}
+
+void GUI::loadPatientInfo() {
+    DataStore::PatientInfo info = DataStore::readPatientInfo(currentUserId);
+    inputFullName = info.name;
+    inputPhone = info.phone;
+    inputEmail = info.email;
+    inputAddress = info.address;
+    inputDOB = info.dateOfBirth;
+    inputGender = info.gender;
+}
+
+void GUI::savePatientInfo() {
+    DataStore::PatientInfo info;
+    info.name = inputFullName;
+    info.phone = inputPhone;
+    info.email = inputEmail;
+    info.address = inputAddress;
+    info.dateOfBirth = inputDOB;
+    info.gender = inputGender;
+    
+    if (DataStore::writePatientInfo(currentUserId, info)) {
+        std::cout << u8"Lưu thông tin thành công!" << std::endl;
+    } else {
+        std::cout << u8"Lưu thông tin thất bại!" << std::endl;
+    }
+}
+
+void GUI::loadDoctorInfo() {
+    DataStore::DoctorInfo info = DataStore::readDoctorInfo(currentUserId);
+    inputFullName = info.name;
+    inputPhone = info.phone;
+    inputEmail = info.email;
+    inputSpecialization = info.specialization;
+    inputFaculty = info.experience;
+}
+
+void GUI::saveDoctorInfo() {
+    DataStore::DoctorInfo info;
+    info.name = inputFullName;
+    info.phone = inputPhone;
+    info.email = inputEmail;
+    info.specialization = inputSpecialization;
+    info.experience = inputFaculty;
+    
+    if (DataStore::writeDoctorInfo(currentUserId, info)) {
+        std::cout << u8"Lưu thông tin thành công!" << std::endl;
+    } else {
+        std::cout << u8"Lưu thông tin thất bại!" << std::endl;
+    }
+}
+
+

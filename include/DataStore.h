@@ -1,4 +1,4 @@
-// DataStore.h - Fixed version with all required functions
+﻿// DataStore.h - Fixed version with all required functions
 #pragma once
 #include <string>
 #include <vector>
