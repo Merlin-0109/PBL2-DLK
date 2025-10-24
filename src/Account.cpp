@@ -2,6 +2,25 @@
 #include "Account.h"
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
+
+// Helper: trim leading/trailing whitespace
+static inline std::string trim(const std::string& s) {
+    size_t start = 0;
+    while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) start++;
+    size_t end = s.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1]))) end--;
+    return s.substr(start, end - start);
+}
+
+// Helper: strip UTF-8 BOM if present
+static inline void stripBOM(std::string& s) {
+    if (s.size() >= 3 && static_cast<unsigned char>(s[0]) == 0xEF &&
+        static_cast<unsigned char>(s[1]) == 0xBB &&
+        static_cast<unsigned char>(s[2]) == 0xBF) {
+        s.erase(0, 3);
+    }
+}
 
 Account::Account() : role(""), id(""), username(""), password("") {}
 
@@ -72,6 +91,8 @@ bool Account::loginWithCredentials(const std::string& inputUser, const std::stri
         std::ifstream idList("data/" + roleStr + ".txt");
         
         if (!idList.is_open()) {
+            std::cout << u8"Cảnh báo: Không mở được danh sách ID cho vai trò '" << roleStr
+                      << u8"' tại đường dẫn: " << (std::filesystem::current_path() / ("data/" + roleStr + ".txt")) << "\n";
             continue;
         }
         
@@ -87,13 +108,19 @@ bool Account::loginWithCredentials(const std::string& inputUser, const std::stri
             std::getline(accountFile, fileUser);
             std::getline(accountFile, filePass);
             accountFile.close();
+            stripBOM(fileUser);
+            stripBOM(filePass);
+            fileUser = trim(fileUser);
+            filePass = trim(filePass);
+            std::string inUser = trim(inputUser);
+            std::string inPass = trim(inputPass);
             
-            if (inputUser == fileUser && inputPass == filePass) {
+            if (inUser == fileUser && inPass == filePass) {
                 // Authentication successful
                 this->role = roleStr;
                 this->id = currentId;
-                this->username = inputUser;
-                this->password = inputPass;
+                this->username = inUser;
+                this->password = inPass;
                 
                 outRole = roleStr;
                 outId = currentId;

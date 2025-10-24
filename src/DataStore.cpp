@@ -250,9 +250,22 @@ bool DataStore::updateAppointmentStatus(const std::string& appointmentId, const 
     if (details.appointmentId.empty()) {
         return false;
     }
-    
     details.status = newStatus;
-    return writeAppointment(appointmentId, details);
+    // Overwrite appointment file without appending to patient/doctor lists
+    std::string filepath = "data/appointments/" + appointmentId + ".txt";
+    std::ofstream file(filepath);
+    if (!file.is_open()) {
+        return false;
+    }
+    file << "appointmentId:" << details.appointmentId << "\n";
+    file << "patientId:" << details.patientId << "\n";
+    file << "doctorId:" << details.doctorId << "\n";
+    file << "date:" << details.date << "\n";
+    file << "time:" << details.time << "\n";
+    file << "reason:" << details.reason << "\n";
+    file << "status:" << details.status << "\n";
+    file.close();
+    return true;
 }
 
 bool DataStore::deleteAppointment(const std::string& appointmentId) {

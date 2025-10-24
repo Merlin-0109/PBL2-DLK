@@ -27,6 +27,7 @@ class GUI {
 private:
     sf::RenderWindow window;
     sf::Font font;
+    sf::Font symbolFont; // Segoe UI Symbol for icons
     Screen currentScreen;
     UserRole selectedRole;
     
@@ -61,6 +62,30 @@ private:
 
     // Account system
     Account accountSystem;
+    
+    // Patient Dashboard state
+    enum class PatientMenuOption {
+        BOOK_APPOINTMENT,
+        MY_APPOINTMENTS,
+        NOTIFICATIONS,
+        UPDATE_INFO
+    };
+    PatientMenuOption activePatientMenu;
+    
+    // Search and filter inputs
+    std::string searchDoctorText;
+    std::string selectedSpecialty;
+    std::string selectedDate;
+
+    // Booking modal state (Patient Dashboard)
+    bool showBookingModal = false;
+    std::string selectedDoctorForBooking;
+    std::string bookingDateText;   // e.g. DD/MM/YYYY
+    std::string bookingTimeText;   // e.g. HH:MM
+    std::string bookingReasonText; // free text
+
+    // Simple date picker state
+    bool showDatePicker = false;
 
 public:
     GUI();
@@ -91,6 +116,9 @@ private:
                         sf::Color fillColor, sf::RenderWindow& window);
     void drawButton(sf::Vector2f position, sf::Vector2f size, const std::string& text,
                    sf::Color bgColor, sf::Color textColor, sf::RenderWindow& window);
+    void drawButton(sf::Vector2f position, sf::Vector2f size, const std::string& text,
+                   sf::Color bgColor, sf::Color textColor, bool enabled, bool hovered,
+                   sf::RenderWindow& window);
     bool isMouseOverRect(const sf::Vector2f& mousePos, const sf::Vector2f& rectPos, 
                         const sf::Vector2f& rectSize);
     void drawInputField(sf::Vector2f position, sf::Vector2f size, const std::string& label,
@@ -99,6 +127,13 @@ private:
     void drawRoleCard(sf::Vector2f position, sf::Vector2f size, const std::string& title,
                      const std::string& description, const std::string& icon,
                      bool isSelected, sf::RenderWindow& window);
+    void drawNavigationMenu(sf::Vector2f position, sf::Vector2f size, sf::RenderWindow& window);
+    void drawAppointmentCard(sf::Vector2f position, sf::Vector2f size, 
+                            const std::string& doctorName, const std::string& specialty,
+                            const std::string& dateTime, sf::RenderWindow& window);
+    void drawDoctorListItem(sf::Vector2f position, sf::Vector2f size,
+                            const std::string& doctorName, const std::string& specialty,
+                            const std::string& doctorId, sf::RenderWindow& window);
     
     // Navigation
     void switchToScreen(Screen newScreen);
