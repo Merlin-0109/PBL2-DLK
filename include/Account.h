@@ -1,4 +1,4 @@
-// Account.h - Extended version with GUI support
+// Account.h - GUI-only version (no console input)
 #pragma once
 #include <string>
 #include <fstream>
@@ -24,12 +24,12 @@ public:
     Account();
     ~Account();
 
-    // Original console-based methods
+    // DEPRECATED: Console-based methods (disabled for GUI-only app)
     bool login(std::string& outRole, std::string& outId);
     void logout();
     void registerAccount();
     
-    // NEW: GUI-compatible methods
+    // GUI-compatible methods (USE THESE!)
     bool loginWithCredentials(const std::string& inputUser, const std::string& inputPass, 
                              std::string& outRole, std::string& outId);
     bool registerWithCredentials(const std::string& inputUser, const std::string& inputPass,

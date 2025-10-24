@@ -1,6 +1,3 @@
-// ============================================
-// File: include/GUI.h - Modern Hospital Management GUI
-// ============================================
 #pragma once
 #include <SFML/Graphics.hpp>
 #include <string>
@@ -174,4 +171,3 @@ private:
     void render();
     void drawModernBackground();
 };
-

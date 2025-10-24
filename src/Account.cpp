@@ -24,15 +24,11 @@ void Account::ensureDefaultAdminExists() {
     }
 }
 
-// Original console-based login
+// Original console-based login (DISABLED for GUI-only app)
 bool Account::login(std::string& outRole, std::string& outId) {
-    std::string inputUser, inputPass;
-    std::cout << "Nhap ten dang nhap: ";
-    std::cin >> inputUser;
-    std::cout << "Nhap mat khau: ";
-    std::cin >> inputPass;
-
-    return loginWithCredentials(inputUser, inputPass, outRole, outId);
+    // This function is deprecated - use loginWithCredentials() instead
+    std::cerr << "Error: Console login is disabled. Use GUI login." << std::endl;
+    return false;
 }
 
 // NEW: GUI-compatible login
@@ -70,29 +66,11 @@ void Account::logout() {
     std::cout << "Da dang xuat.\n";
 }
 
-// Original console-based register
+// Original console-based register (DISABLED for GUI-only app)
 void Account::registerAccount() {
-    std::cout << "Nhap vai tro (Doctor/Patient): ";
-    std::cin >> role;
-    // normalize to lower-case then proper form
-    for (auto &c : role) c = std::tolower((unsigned char)c);
-    if (role == "doctor") role = "Doctor";
-    else if (role == "patient") role = "Patient";
-    else {
-        std::cout << "Invalid role. Only Doctor or Patient can register.\n";
-        return;
-    }
-
-    std::cout << "Nhap ten dang nhap: ";
-    std::cin >> username;
-    std::cout << "Nhap mat khau: ";
-    std::cin >> password;
-
-    id = generateID(role);
-    saveUserData(role, id);
-    appendIDToList(role, id);
-
-    std::cout << "Tao tai khoan thanh cong! ID cua ban la: " << id << "\n";
+    // This function is deprecated - use registerWithCredentials() instead
+    std::cerr << "Error: Console registration is disabled. Use GUI registration." << std::endl;
+    return;
 }
 
 // NEW: GUI-compatible register
@@ -144,8 +122,8 @@ std::string Account::generateID(const std::string& role) {
     if (role == "Patient") {
         prefix = "01";
     } else if (role == "Doctor") {
-        // For GUI, use default department code
-        prefix = "0201";
+        // For GUI/automatic registration, use default department code "01"
+        prefix = "0201";  // 02 = Doctor, 01 = Default department
     } else if (role == "Admin") {
         prefix = "00";
     }

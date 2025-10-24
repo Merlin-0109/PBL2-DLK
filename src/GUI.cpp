@@ -978,4 +978,3 @@ void HospitalGUI::run() {
         render();
     }
 }
-
