@@ -1,24 +1,28 @@
 ﻿#include "GUI.h"
 #include "DataStore.h"
 #include <iostream>
-#include <locale>
-#include <codecvt>
+#include <cstring>
 
-// Helper function for SFML 3.x with UTF-8 support
+// Helper function for SFML 3.x with proper UTF-8 support
 static sf::Text makeText(const sf::Font& font, const std::string& str, unsigned int size) {
     sf::Text text(font);
-    text.setString(str);
-    text.setCharacterSize(size);
     
-    // Enable smooth text rendering
-    text.setOutlineThickness(0);
-    text.setStyle(sf::Text::Regular);
+    // Convert UTF-8 string to sf::String properly
+    text.setString(sf::String::fromUtf8(str.begin(), str.end()));
+    text.setCharacterSize(size);
     
     return text;
 }
 
+// Helper to create UTF-8 sf::String from u8 literal
+static sf::String makeUtf8String(const char* u8str) {
+    std::string str(u8str);
+    return sf::String::fromUtf8(str.begin(), str.end());
+}
+
 GUI::GUI() 
-    : window(sf::VideoMode({1280, 800}), u8"Đặt Lịch Khám - Hệ Thống Đặt Lịch Khám Bệnh"),
+    : window(sf::VideoMode({1280, 800}), 
+             makeUtf8String(u8"Đặt Lịch Khám - Hệ Thống Đặt Lịch Khám Bệnh")),
       currentScreen(Screen::REGISTER_SELECT_ROLE),
       selectedRole(UserRole::NONE),
       activeInputField(-1),
@@ -30,25 +34,27 @@ GUI::GUI()
 GUI::~GUI() {}
 
 bool GUI::initialize() {
-    // Use fonts that support Vietnamese properly
+    // Use Roboto font for best Vietnamese support
     std::vector<std::string> fontPaths = {
-        "C:/Windows/Fonts/segoeui.ttf",      // Segoe UI - best for Vietnamese
-        "C:/Windows/Fonts/arialni.ttf",      // Arial Unicode
-        "C:/Windows/Fonts/tahomabd.ttf",     // Tahoma
-        "C:/Windows/Fonts/arial.ttf"         // Fallback
+        "assets/Roboto.ttf",                 // Roboto - excellent Vietnamese support
+        "assets/fonts/arial.ttf",            // Local Arial
+        "C:/Windows/Fonts/segoeui.ttf",      // Segoe UI
+        "C:/Windows/Fonts/arial.ttf"         // System Arial fallback
     };
     
     bool fontLoaded = false;
     for (const auto& path : fontPaths) {
         if (font.openFromFile(path)) {
-            std::cout << "Font loaded: " << path << std::endl;
+            std::cout << "Font loaded successfully: " << path << std::endl;
             fontLoaded = true;
             break;
+        } else {
+            std::cout << "Failed to load: " << path << std::endl;
         }
     }
     
     if (!fontLoaded) {
-        std::cerr << "ERROR: Could not load font!" << std::endl;
+        std::cerr << "ERROR: Could not load any font!" << std::endl;
         return false;
     }
     
@@ -73,63 +79,73 @@ void GUI::run() {
 }
 
 void GUI::handleEvents() {
-    while (std::optional<sf::Event> event = window.pollEvent()) {
-        if (event->is<sf::Event::Closed>()) {
-            window.close();
-        }
-        else if (const auto* mouseButtonPressed = event->getIf<sf::Event::MouseButtonPressed>()) {
-            if (mouseButtonPressed->button == sf::Mouse::Button::Left) {
-                sf::Vector2f mousePos(static_cast<float>(mouseButtonPressed->position.x), 
-                                     static_cast<float>(mouseButtonPressed->position.y));
-                handleMouseClick(mousePos);
+    try {
+        while (std::optional<sf::Event> event = window.pollEvent()) {
+            if (event->is<sf::Event::Closed>()) {
+                window.close();
+            }
+            else if (const auto* mouseButtonPressed = event->getIf<sf::Event::MouseButtonPressed>()) {
+                if (mouseButtonPressed->button == sf::Mouse::Button::Left) {
+                    sf::Vector2f mousePos(static_cast<float>(mouseButtonPressed->position.x), 
+                                         static_cast<float>(mouseButtonPressed->position.y));
+                    handleMouseClick(mousePos);
+                }
+            }
+            else if (const auto* textEntered = event->getIf<sf::Event::TextEntered>()) {
+                handleTextInput(textEntered->unicode);
+            }
+            else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+                handleKeyPress(keyPressed->code);
             }
         }
-        else if (const auto* textEntered = event->getIf<sf::Event::TextEntered>()) {
-            handleTextInput(textEntered->unicode);
+        
+        if (cursorClock.getElapsedTime().asSeconds() > 0.5f) {
+            showCursor = !showCursor;
+            cursorClock.restart();
         }
-        else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
-            handleKeyPress(keyPressed->code);
-        }
-    }
-    
-    if (cursorClock.getElapsedTime().asSeconds() > 0.5f) {
-        showCursor = !showCursor;
-        cursorClock.restart();
+    } catch (const std::exception& e) {
+        std::cerr << "Error in handleEvents: " << e.what() << std::endl;
     }
 }
 
 void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
     switch (currentScreen) {
         case Screen::REGISTER_SELECT_ROLE: {
-            if (isMouseOverRect(mousePos, {340, 320}, {300, 140})) {
+            // Role cards: Patient {340, 360}, Doctor {640, 360}, size {280, 130}
+            if (isMouseOverRect(mousePos, {340, 360}, {280, 130})) {
                 selectedRole = UserRole::PATIENT;
             }
-            else if (isMouseOverRect(mousePos, {640, 320}, {300, 140})) {
+            else if (isMouseOverRect(mousePos, {640, 360}, {280, 130})) {
                 selectedRole = UserRole::DOCTOR;
             }
-            else if (isMouseOverRect(mousePos, {440, 500}, {200, 50})) {
+            // Continue button: {490, 520}, {300, 55}
+            else if (isMouseOverRect(mousePos, {490, 520}, {300, 55})) {
                 if (selectedRole != UserRole::NONE) {
                     switchToScreen(Screen::REGISTER_INFO);
                 }
             }
-            else if (isMouseOverRect(mousePos, {450, 570}, {300, 30})) {
+            // Login link: wider area for easier clicking
+            else if (isMouseOverRect(mousePos, {400, 590}, {480, 40})) {
                 switchToScreen(Screen::LOGIN);
             }
             break;
         }
         
         case Screen::REGISTER_INFO: {
+            // Input fields: startY=265, spacing=80, size={600, 50}
             for (int i = 0; i < 4; i++) {
-                float yPos = 250 + i * 70;
-                if (isMouseOverRect(mousePos, {340, yPos}, {600, 45})) {
+                float yPos = 265 + i * 80;
+                if (isMouseOverRect(mousePos, {340, yPos}, {600, 50})) {
                     activeInputField = i;
                     return;
                 }
             }
-            if (isMouseOverRect(mousePos, {440, 550}, {200, 50})) {
+            // Register button: {490, 600}, {300, 55}
+            if (isMouseOverRect(mousePos, {490, 600}, {300, 55})) {
                 completeRegistration();
             }
-            else if (isMouseOverRect(mousePos, {440, 620}, {200, 30})) {
+            // Back link: moved below white panel at y=710
+            else if (isMouseOverRect(mousePos, {500, 700}, {280, 35})) {
                 switchToScreen(Screen::REGISTER_SELECT_ROLE);
             }
             activeInputField = -1;
@@ -137,16 +153,19 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
         }
         
         case Screen::LOGIN: {
-            if (isMouseOverRect(mousePos, {400, 300}, {480, 45})) {
+            // Input fields: {400, 300} and {400, 390}, size {480, 50}
+            if (isMouseOverRect(mousePos, {400, 300}, {480, 50})) {
                 activeInputField = 0;
             }
-            else if (isMouseOverRect(mousePos, {400, 370}, {480, 45})) {
+            else if (isMouseOverRect(mousePos, {400, 390}, {480, 50})) {
                 activeInputField = 1;
             }
-            else if (isMouseOverRect(mousePos, {540, 450}, {200, 50})) {
+            // Login button: {540, 480}, {200, 55}
+            else if (isMouseOverRect(mousePos, {540, 480}, {200, 55})) {
                 completeLogin();
             }
-            else if (isMouseOverRect(mousePos, {450, 520}, {300, 30})) {
+            // Register link: wider clickable area
+            else if (isMouseOverRect(mousePos, {400, 560}, {400, 40})) {
                 switchToScreen(Screen::REGISTER_SELECT_ROLE);
             }
             else {
@@ -343,55 +362,63 @@ void GUI::renderRegisterSelectRole() {
     appTitle.setStyle(sf::Text::Bold);
     window.draw(appTitle);
     
-    // Central panel with shadow effect
-    sf::RectangleShape shadow({740, 670});
-    shadow.setPosition({275, 125});
-    shadow.setFillColor(sf::Color(200, 200, 200, 100));
+    // Central panel with shadow effect - better positioning
+    sf::RectangleShape shadow({764, 494});
+    shadow.setPosition({263, 153});
+    shadow.setFillColor(sf::Color(200, 200, 200, 80));
     window.draw(shadow);
     
-    sf::RectangleShape panel({720, 650});
-    panel.setPosition({280, 120});
+    sf::RectangleShape panel({760, 490});
+    panel.setPosition({260, 150});
     panel.setFillColor(sf::Color::White);
     window.draw(panel);
     
-    // Medical cross icon - larger and centered
-    sf::Text logo = makeText(font, "+", 96);
-    logo.setPosition({600, 140});
+    // Medical cross icon - centered
+    sf::Text logo = makeText(font, "+", 80);
+    sf::FloatRect logoBounds = logo.getLocalBounds();
+    logo.setPosition({640 - logoBounds.size.x / 2, 170});
     logo.setFillColor(sf::Color(30, 136, 229));
     logo.setStyle(sf::Text::Bold);
     window.draw(logo);
     
     // Title with better spacing
-    sf::Text title = makeText(font, u8"Đăng Ký Tài Khoản Mới", 36);
+    sf::Text title = makeText(font, u8"Đăng Ký Tài Khoản Mới", 32);
     sf::FloatRect titleBounds = title.getLocalBounds();
-    title.setPosition({640 - titleBounds.size.x / 2, 250});
+    title.setPosition({640 - titleBounds.size.x / 2, 270});
     title.setFillColor(sf::Color(33, 33, 33));
     title.setStyle(sf::Text::Bold);
     window.draw(title);
     
     // Subtitle
-    sf::Text subtitle = makeText(font, u8"Vui lòng chọn loại tài khoản", 18);
+    sf::Text subtitle = makeText(font, u8"Vui lòng chọn loại tài khoản", 16);
     sf::FloatRect subtitleBounds = subtitle.getLocalBounds();
-    subtitle.setPosition({640 - subtitleBounds.size.x / 2, 300});
+    subtitle.setPosition({640 - subtitleBounds.size.x / 2, 315});
     subtitle.setFillColor(sf::Color(100, 100, 100));
     window.draw(subtitle);
     
-    // Role cards with better design
-    drawRoleCard({340, 340}, {280, 130}, u8"Bệnh Nhân", 
+    // Role cards - centered in panel (260 + (760-600)/2 = 340)
+    float cardsStartX = 340;
+    float cardY = 360;
+    float cardWidth = 280;
+    float cardHeight = 130;
+    float cardSpacing = 20;
+    
+    drawRoleCard({cardsStartX, cardY}, {cardWidth, cardHeight}, u8"Bệnh Nhân", 
                  u8"Đặt lịch khám bệnh", "P", 
                  selectedRole == UserRole::PATIENT, window);
-    drawRoleCard({660, 340}, {280, 130}, u8"Bác Sĩ",
+    drawRoleCard({cardsStartX + cardWidth + cardSpacing, cardY}, {cardWidth, cardHeight}, u8"Bác Sĩ",
                  u8"Quản lý lịch khám", "D",
                  selectedRole == UserRole::DOCTOR, window);
     
-    // Continue button with gradient
+    // Continue button - centered, wider
     sf::Color buttonColor = (selectedRole != UserRole::NONE) ? 
                            sf::Color(76, 175, 80) : sf::Color(189, 189, 189);
-    drawButton({440, 520}, {200, 55}, u8"Tiếp Tục", buttonColor, sf::Color::White, window);
+    drawButton({490, 520}, {300, 55}, u8"Tiếp Tục", buttonColor, sf::Color::White, window);
     
-    // Login link
+    // Login link - centered
     sf::Text loginLink = makeText(font, u8"Đã có tài khoản? Đăng Nhập", 16);
-    loginLink.setPosition({450, 600});
+    sf::FloatRect linkBounds = loginLink.getLocalBounds();
+    loginLink.setPosition({640 - linkBounds.size.x / 2, 595});
     loginLink.setFillColor(sf::Color(30, 136, 229));
     window.draw(loginLink);
 }
@@ -410,28 +437,28 @@ void GUI::renderRegisterInfo() {
     appTitle.setStyle(sf::Text::Bold);
     window.draw(appTitle);
     
-    // Panel
-    sf::RectangleShape panel({720, 530});
-    panel.setPosition({280, 130});
+    // Enlarged white panel for better visibility
+    sf::RectangleShape panel({760, 580});
+    panel.setPosition({260, 110});
     panel.setFillColor(sf::Color::White);
     window.draw(panel);
     
     sf::Text title = makeText(font, u8"Thông Tin Đăng Ký", 32);
     sf::FloatRect titleBounds = title.getLocalBounds();
-    title.setPosition({640 - titleBounds.size.x / 2, 160});
+    title.setPosition({640 - titleBounds.size.x / 2, 145});
     title.setFillColor(sf::Color(33, 33, 33));
     title.setStyle(sf::Text::Bold);
     window.draw(title);
     
     sf::Text subtitle = makeText(font, u8"Vui lòng điền đầy đủ thông tin", 16);
     sf::FloatRect subtitleBounds = subtitle.getLocalBounds();
-    subtitle.setPosition({640 - subtitleBounds.size.x / 2, 200});
+    subtitle.setPosition({640 - subtitleBounds.size.x / 2, 190});
     subtitle.setFillColor(sf::Color(120, 120, 120));
     window.draw(subtitle);
     
     // Input fields - simplified to 4 fields
-    float startY = 250;
-    float spacing = 70;
+    float startY = 265;
+    float spacing = 80;
     
     drawInputField({340, startY}, {600, 50}, u8"Tên Đăng Nhập *", inputUsername,
                    activeInputField == 0, false, window);
@@ -442,14 +469,14 @@ void GUI::renderRegisterInfo() {
     drawInputField({340, startY + spacing * 3}, {600, 50}, "Email *", inputEmail,
                    activeInputField == 3, false, window);
     
-    // Register button
-    drawButton({440, 550}, {200, 55}, u8"Đăng Ký", 
+    // Register button - centered
+    drawButton({490, 600}, {300, 55}, u8"Đăng Ký", 
                sf::Color(76, 175, 80), sf::Color::White, window);
     
-    // Back link
+    // Back link - moved below white panel
     sf::Text backText = makeText(font, "< Quay Lại", 16);
     sf::FloatRect backBounds = backText.getLocalBounds();
-    backText.setPosition({640 - backBounds.size.x / 2, 625});
+    backText.setPosition({640 - backBounds.size.x / 2, 710});
     backText.setFillColor(sf::Color(30, 136, 229));
     window.draw(backText);
 }
@@ -467,29 +494,30 @@ void GUI::renderLogin() {
     appTitle.setStyle(sf::Text::Bold);
     window.draw(appTitle);
     
-    sf::RectangleShape panel({600, 380});
-    panel.setPosition({340, 210});
+    // Enlarged white panel for better visibility
+    sf::RectangleShape panel({700, 450});
+    panel.setPosition({290, 180});
     panel.setFillColor(sf::Color::White);
     window.draw(panel);
     
     sf::Text title = makeText(font, u8"Chào Mừng Trở Lại", 32);
     sf::FloatRect titleBounds = title.getLocalBounds();
-    title.setPosition({640 - titleBounds.size.x / 2, 240});
+    title.setPosition({640 - titleBounds.size.x / 2, 215});
     title.setFillColor(sf::Color(33, 33, 33));
     title.setStyle(sf::Text::Bold);
     window.draw(title);
     
     drawInputField({400, 300}, {480, 50}, u8"Tên Đăng Nhập", inputUsername,
                    activeInputField == 0, false, window);
-    drawInputField({400, 370}, {480, 50}, u8"Mật Khẩu", inputPassword,
+    drawInputField({400, 390}, {480, 50}, u8"Mật Khẩu", inputPassword,
                    activeInputField == 1, true, window);
     
-    drawButton({540, 450}, {200, 55}, u8"Đăng Nhập",
+    drawButton({540, 480}, {200, 55}, u8"Đăng Nhập",
                sf::Color(30, 136, 229), sf::Color::White, window);
     
     sf::Text registerLink = makeText(font, u8"Chưa có tài khoản? Đăng Ký", 16);
     sf::FloatRect linkBounds = registerLink.getLocalBounds();
-    registerLink.setPosition({640 - linkBounds.size.x / 2, 530});
+    registerLink.setPosition({640 - linkBounds.size.x / 2, 570});
     registerLink.setFillColor(sf::Color(30, 136, 229));
     window.draw(registerLink);
 }
@@ -680,7 +708,7 @@ void GUI::drawInputField(sf::Vector2f position, sf::Vector2f size, const std::st
                         const std::string& value, bool isActive, bool isPassword,
                         sf::RenderWindow& win) {
     sf::Text labelText = makeText(font, label, 14);
-    labelText.setPosition({position.x, position.y - 22});
+    labelText.setPosition({position.x, position.y - 25});
     labelText.setFillColor(sf::Color(80, 80, 80));
     win.draw(labelText);
     
@@ -779,15 +807,31 @@ void GUI::resetInputFields() {
 }
 
 void GUI::completeRegistration() {
+    // Validate empty fields
     if (inputUsername.empty() || inputPassword.empty() || inputEmail.empty()) {
-        std::cout << u8"Vui lòng điền đầy đủ thông tin!" << std::endl;
+        std::cout << u8"❌ Lỗi: Vui lòng điền đầy đủ thông tin!" << std::endl;
         return;
     }
     
+    // Validate password match
     if (inputPassword != inputConfirmPassword) {
-        std::cout << u8"Mật khẩu không khớp!" << std::endl;
+        std::cout << u8"❌ Lỗi: Mật khẩu không khớp!" << std::endl;
         return;
     }
+    
+    // Validate username length
+    if (inputUsername.length() < 3) {
+        std::cout << u8"❌ Lỗi: Tên đăng nhập phải có ít nhất 3 ký tự!" << std::endl;
+        return;
+    }
+    
+    // Validate password length
+    if (inputPassword.length() < 6) {
+        std::cout << u8"❌ Lỗi: Mật khẩu phải có ít nhất 6 ký tự!" << std::endl;
+        return;
+    }
+    
+    std::cout << u8"⏳ Đang đăng ký..." << std::endl;
     
     std::string role = (selectedRole == UserRole::PATIENT) ? "Patient" : "Doctor";
     std::string generatedId;
@@ -805,18 +849,20 @@ void GUI::completeRegistration() {
             emailFile.close();
         }
         
-        std::cout << u8"Đăng ký thành công! ID: " << generatedId << std::endl;
+        std::cout << u8"✅ Đăng ký thành công! ID: " << generatedId << std::endl;
+        
+        // Clear password fields for security
+        inputPassword.clear();
+        inputConfirmPassword.clear();
         
         // After registration, go to update info screen
         if (selectedRole == UserRole::PATIENT) {
-            inputEmail = inputEmail;  // Keep email
             switchToScreen(Screen::UPDATE_PATIENT_INFO);
         } else {
-            inputEmail = inputEmail;
             switchToScreen(Screen::UPDATE_DOCTOR_INFO);
         }
     } else {
-        std::cout << u8"Đăng ký thất bại! Tên đăng nhập đã tồn tại." << std::endl;
+        std::cout << u8"❌ Đăng ký thất bại! Tên đăng nhập đã tồn tại." << std::endl;
     }
 }
 
@@ -826,6 +872,14 @@ bool GUI::validateRegistrationInputs() {
 }
 
 void GUI::completeLogin() {
+    // Validate empty fields
+    if (inputUsername.empty() || inputPassword.empty()) {
+        std::cout << u8"❌ Lỗi: Vui lòng nhập tên đăng nhập và mật khẩu!" << std::endl;
+        return;
+    }
+    
+    std::cout << u8"⏳ Đang đăng nhập..." << std::endl;
+    
     std::string outRole, outId;
     bool success = accountSystem.loginWithCredentials(inputUsername, inputPassword, outRole, outId);
     
@@ -833,7 +887,10 @@ void GUI::completeLogin() {
         currentUserId = outId;
         currentUserRole = outRole;
         
-        std::cout << u8"Đăng nhập thành công! Role: " << outRole << ", ID: " << outId << std::endl;
+        std::cout << u8"✅ Đăng nhập thành công! Role: " << outRole << ", ID: " << outId << std::endl;
+        
+        // Clear password for security
+        inputPassword.clear();
         
         if (outRole == "Patient") {
             switchToScreen(Screen::PATIENT_DASHBOARD);
