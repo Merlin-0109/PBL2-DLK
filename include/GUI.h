@@ -70,9 +70,6 @@ private:
     std::string bookingTimeText;   // e.g. HH:MM
     std::string bookingReasonText; // free text
 
-    // Simple date picker state
-    bool showDatePicker = false;
-    
     // Doctor cancel modal state
     bool showDoctorCancelModal = false;
     std::string selectedAppointmentToCancel;

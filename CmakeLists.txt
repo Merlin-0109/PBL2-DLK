@@ -24,13 +24,6 @@ endif()
 set(SOURCES
     src/Account.cpp
     src/DataStore.cpp
-    src/Doctor.cpp
-    src/DoctorService.cpp
-    src/Guest.cpp
-    src/lichkham.cpp
-    src/Patient.cpp
-    src/PatientService.cpp
-    src/User.cpp
     # Split GUI implementation files
     src/gui/GuiInternal.cpp
     src/gui/GUI_Core.cpp
