@@ -4,24 +4,10 @@
 #include <memory>
 #include <functional>
 #include "Account.h"
+#include "gui/Screen.h"
+#include "gui/UserRole.h"
 
-// Enum for different screens
-enum class Screen {
-    REGISTER_SELECT_ROLE,
-    REGISTER_INFO,
-    LOGIN,
-    UPDATE_PATIENT_INFO,
-    UPDATE_DOCTOR_INFO,
-    PATIENT_DASHBOARD,
-    DOCTOR_DASHBOARD
-};
-
-// Enum for user role selection
-enum class UserRole {
-    NONE,
-    PATIENT,
-    DOCTOR
-};
+// Screen and user role enums are now declared in gui/Screen.h and gui/UserRole.h
 
 class GUI {
 private:

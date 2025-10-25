@@ -1,0 +1,11 @@
+#pragma once
+
+enum class Screen {
+    REGISTER_SELECT_ROLE,
+    REGISTER_INFO,
+    LOGIN,
+    UPDATE_PATIENT_INFO,
+    UPDATE_DOCTOR_INFO,
+    PATIENT_DASHBOARD,
+    DOCTOR_DASHBOARD
+};

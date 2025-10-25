@@ -8,16 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Add include directory
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-cmake_minimum_required(VERSION 3.16)
-project(Datchikham LANGUAGES CXX)
-
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# Add include directory
-include_directories(${PROJECT_SOURCE_DIR}/include)
-
 # Force CMake to find SFML 3.x in msys64
 set(CMAKE_PREFIX_PATH "C:/msys64/ucrt64")
 set(SFML_DIR "C:/msys64/ucrt64/lib/cmake/SFML")
@@ -37,11 +27,23 @@ set(SOURCES
     src/Doctor.cpp
     src/DoctorService.cpp
     src/Guest.cpp
-    src/GUI.cpp
     src/lichkham.cpp
     src/Patient.cpp
     src/PatientService.cpp
     src/User.cpp
+    # Split GUI implementation files
+    src/gui/GuiInternal.cpp
+    src/gui/GUI_Core.cpp
+    src/gui/GUI_Events.cpp
+    src/gui/GUI_InputHandlers.cpp
+    src/gui/GUI_Render.cpp
+    src/gui/GUI_Render_Register.cpp
+    src/gui/GUI_Render_UpdateInfo.cpp
+    src/gui/GUI_Render_PatientDashboard.cpp
+    src/gui/GUI_Render_DoctorDashboard.cpp
+    src/gui/GUI_Widgets.cpp
+    src/gui/GUI_Auth.cpp
+    src/gui/GUI_Data.cpp
 )
 
 # Create library from sources
@@ -65,20 +67,17 @@ else()
     target_link_libraries(Datchikham PRIVATE DatchikhamLib)
 endif()
 
-# Copy assets folder to build directory (nếu tồn tại)
+## Copy runtime folders (assets, data) to build directory
 if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
-    file(COPY ${CMAKE_SOURCE_DIR}/assets 
-         DESTINATION ${CMAKE_BINARY_DIR})
+    file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})
     message(STATUS "Copied assets folder")
 else()
     message(WARNING "assets folder not found - creating empty folder")
     file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/assets)
 endif()
 
-# Copy data folder to build directory (nếu tồn tại)
 if(EXISTS ${CMAKE_SOURCE_DIR}/data)
-    file(COPY ${CMAKE_SOURCE_DIR}/data 
-         DESTINATION ${CMAKE_BINARY_DIR})
+    file(COPY ${CMAKE_SOURCE_DIR}/data DESTINATION ${CMAKE_BINARY_DIR})
     message(STATUS "Copied data folder")
 else()
     message(WARNING "data folder not found - will be created at runtime")
@@ -91,19 +90,9 @@ if(WIN32)
     )
 endif()
 
-# Install targets
+## Install targets
 install(TARGETS Datchikham DESTINATION bin)
 install(DIRECTORY assets DESTINATION bin)
-
-# Copy assets folder to build directory
-file(COPY ${CMAKE_SOURCE_DIR}/assets 
-     DESTINATION ${CMAKE_BINARY_DIR})
-
-# Copy data folder to build directory (if exists)
-if(EXISTS ${CMAKE_SOURCE_DIR}/data)
-    file(COPY ${CMAKE_SOURCE_DIR}/data 
-         DESTINATION ${CMAKE_BINARY_DIR})
-endif()
 
 # Windows specific settings
 if(WIN32)
@@ -128,6 +117,4 @@ if(WIN32)
     )
 endif()
 
-# Install targets
-install(TARGETS Datchikham DESTINATION bin)
-install(DIRECTORY assets DESTINATION bin)
+## Install targets (already set above)
