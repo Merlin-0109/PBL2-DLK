@@ -18,7 +18,6 @@ class Doctor: public User{
             string faculty, Account acc);
         ~Doctor();
 
-        // giống user
         // Information access
         // string getName() const { return Name; }
         // string getSDT() const { return SDT; }
@@ -27,7 +26,6 @@ class Doctor: public User{
         // string getDOB() const { return DOB; }
         // string getGender() const { return Gender; }
         // string getCCCD() const { return CCCD; }
-
         string getSpecialization() const { return specialization; }
         string getDoctorRole() const { return doctorRole; }
         string getFaculty() const { return faculty; }

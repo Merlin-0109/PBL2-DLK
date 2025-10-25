@@ -75,29 +75,29 @@ void User::setCCCD(std::string cccd) {
 
 void User::setID() {
 }
-const std::string User::getName() const {
-    return Name;
+const std::string* User::getName() const {
+
 }
-const std::string  User::getSDT() const{
-    return SDT;
+const std::string*  User::getSDT() const{
+
 }
-const std::string User::getEmail() const{
-    return Email;
+const std::string* User::getEmail() const{
+
 }
-const std::string User::getAddress() const{
-    return Address;
+const std::string* User::getAddress() const{
+
 }
-const std::string User::getDOB() const{
-    return DOB;
+const std::string* User::getDOB() const{
+
 }
-const std::string User::getGender() const{
-    return Gender;
+const std::string* User::getGender() const{
+
 }
-const std::string User::getNhommau() const{
-    return Nhommau;
+const std::string* User::getNhommau() const{
+
 }
-const std::string User::getCCCD() const{
-    return CCCD;
+const std::string* User::getCCCD() const{
+
 }
 // define static member
 std::string User::role = "";
