@@ -15,11 +15,6 @@ namespace DoctorService {
     // Returns: Vector of appointment details for the specified doctor
     std::vector<DataStore::AppointmentDetails> getAppointments(const std::string& doctorId);
     
-    // Update appointment status (e.g., "Scheduled", "Completed", "Cancelled")
-    // Parameters:
-    //   - appointmentId: ID of the appointment to update
-    //   - newStatus: New status to set
-    // Returns: true if successful, false otherwise
     bool updateAppointmentStatus(const std::string& appointmentId, 
                                 const std::string& newStatus);
     
