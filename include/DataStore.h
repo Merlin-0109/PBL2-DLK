@@ -64,4 +64,8 @@ public:
     // Utility functions
     static void ensureAppointmentsDirExists();
     static std::string generateAppointmentId();
+
+    // Notifications
+    static void appendNotification(const std::string& userId, const std::string& message);
+    static std::vector<std::string> readNotifications(const std::string& userId);
 };

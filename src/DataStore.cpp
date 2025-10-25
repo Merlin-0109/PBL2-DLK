@@ -14,6 +14,7 @@ void DataStore::ensureAppointmentsDirExists() {
     fs::create_directories("data/Patient");
     fs::create_directories("data/Doctor");
     fs::create_directories("data/Admin");
+    fs::create_directories("data/notifications");
 }
 
 // Generate unique appointment ID
@@ -337,4 +338,31 @@ std::vector<std::string> DataStore::listAppointmentsForPatient(const std::string
 
 std::vector<std::string> DataStore::listAppointmentsForDoctor(const std::string& doctorId) {
     return getDoctorAppointments(doctorId);
+}
+
+// ============================================
+// Notifications
+// ============================================
+void DataStore::appendNotification(const std::string& userId, const std::string& message) {
+    fs::create_directories("data/notifications");
+    std::string filepath = "data/notifications/" + userId + ".txt";
+    std::ofstream file(filepath, std::ios::app);
+    if (!file.is_open()) return;
+    auto now = std::time(nullptr);
+    std::tm tm = *std::localtime(&now);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%d %H:%M");
+    file << oss.str() << " - " << message << "\n";
+}
+
+std::vector<std::string> DataStore::readNotifications(const std::string& userId) {
+    std::vector<std::string> lines;
+    std::string filepath = "data/notifications/" + userId + ".txt";
+    std::ifstream file(filepath);
+    if (!file.is_open()) return lines;
+    std::string line;
+    while (std::getline(file, line)) {
+        if (!line.empty()) lines.push_back(line);
+    }
+    return lines;
 }
