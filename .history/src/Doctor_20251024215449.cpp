@@ -62,13 +62,3 @@ ostream& operator<<(ostream& o, const Doctor& doctor) {
 
 // define static member
 int Doctor::doctorCount = 0;
-
-void Doctor::findPatient(){
-
-}
-void Doctor::viewAppointment(){
-
-}
-void Doctor::markAsBusy(){
-
-}

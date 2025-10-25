@@ -85,19 +85,19 @@ const std::string User::getEmail() const{
     return Email;
 }
 const std::string User::getAddress() const{
-    return Address;
+
 }
 const std::string User::getDOB() const{
-    return DOB;
+
 }
 const std::string User::getGender() const{
-    return Gender;
+
 }
 const std::string User::getNhommau() const{
-    return Nhommau;
+
 }
 const std::string User::getCCCD() const{
-    return CCCD;
+
 }
 // define static member
 std::string User::role = "";

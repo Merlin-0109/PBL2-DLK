@@ -31,5 +31,6 @@ class User {
         const std::string getNhommau() const;
         const std::string getCCCD() const;
 
+
         virtual void setID();
 };

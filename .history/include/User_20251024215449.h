@@ -21,15 +21,5 @@ class User {
         void setGender(std::string gender);
         void setNhommau(std::string nhommau);
         void setCCCD(std::string cccd);
-
-        const std::string getName() const;
-        const std::string getSDT() const;
-        const std::string getEmail() const;
-        const std::string getAddress() const;
-        const std::string getDOB() const;
-        const std::string getGender() const;
-        const std::string getNhommau() const;
-        const std::string getCCCD() const;
-
         virtual void setID();
 };
