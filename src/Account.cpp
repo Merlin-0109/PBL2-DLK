@@ -26,9 +26,6 @@ Account::Account() : role(""), id(""), username(""), password("") {}
 
 Account::~Account() {}
 
-// ============================================================================
-// STATIC UTILITIES
-// ============================================================================
 
 void Account::ensureDefaultAdminExists() {
     fs::create_directories("data/Admin");

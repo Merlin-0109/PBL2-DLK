@@ -1,6 +1,4 @@
-﻿// ============================================
-// File: include/PatientService.h
-// ============================================
+﻿
 #pragma once
 #include <string>
 #include <vector>
@@ -10,16 +8,7 @@ namespace PatientService {
     
     // Get list of all patient IDs in the system
     std::vector<std::string> getPatientIDs();
-    
-    // Book a new appointment
-    // Parameters:
-    //   - patientId: ID of the patient booking the appointment
-    //   - doctorId: ID of the doctor to see
-    //   - date: Date of appointment (format: YYYY-MM-DD)
-    //   - time: Time of appointment (format: HH:MM)
-    //   - reason: Reason for the appointment
-    //   - outAppointmentId: [OUT] Generated appointment ID
-    // Returns: true if successful, false otherwise
+
     bool bookAppointment(const std::string& patientId, 
                         const std::string& doctorId,
                         const std::string& date, 
