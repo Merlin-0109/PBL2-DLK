@@ -198,46 +198,148 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
                 }
                 return;
             }
-            if (activePatientMenu == PatientMenuOption::BOOK_APPOINTMENT && showDatePicker) {
-                auto ws2 = window.getSize();
-                float W2 = static_cast<float>(ws2.x);
-                float H2 = static_cast<float>(ws2.y);
-                float mw = 420.f, mh = 360.f;
-                float mx = W2/2.f - mw/2.f;
-                float my = H2/2.f - mh/2.f;
-                auto now = std::time(nullptr);
-                std::tm base = *std::localtime(&now);
-                float ox = mx + 20, oy = my + 60;
-                for (int i = 0; i < 14; ++i) {
-                    float col = (i % 2 == 0) ? 0.f : 200.f;
-                    float row = static_cast<float>(i / 2) * 42.f;
-                    if (isMouseOverRect(mousePos, {ox + col, oy + row}, {180, 36})) {
-                        std::tm t = base; t.tm_mday += i; std::mktime(&t);
-                        std::ostringstream oss; oss << std::setfill('0')
-                            << std::setw(2) << t.tm_mday << "/" << std::setw(2) << (t.tm_mon+1) << "/" << (t.tm_year+1900);
-                        bookingDateText = oss.str();
-                        showDatePicker = false;
-                        activeInputField = 101;
-                        return;
-                    }
-                }
-                if (!isMouseOverRect(mousePos, {mx, my}, {mw, mh})) {
-                    showDatePicker = false;
-                    return;
-                }
-                return;
-            }
             if (activePatientMenu == PatientMenuOption::UPDATE_INFO) {
                 if (isMouseOverRect(mousePos, {panelX + 270.f, 200.f}, {350, 50})) {
                     loadPatientInfo();
                     switchToScreen(Screen::UPDATE_PATIENT_INFO);
                 }
             }
+            if (activePatientMenu == PatientMenuOption::MY_APPOINTMENTS) {
+                // Handle patient cancel modal first
+                if (showPatientCancelModal) {
+                    auto ws2 = window.getSize();
+                    float W2 = static_cast<float>(ws2.x);
+                    float H2 = static_cast<float>(ws2.y);
+                    float mw = 600.f, mh = 380.f;
+                    float mx = W2/2.f - mw/2.f;
+                    float my = H2/2.f - mh/2.f;
+                    
+                    float fieldWidth = 540.f;
+                    float fx = mx + (mw - fieldWidth) / 2.f;
+                    float startY2 = my + 100;
+                    
+                    // Click on text field
+                    if (isMouseOverRect(mousePos, {fx, startY2}, {fieldWidth, 120})) {
+                        activeInputField = 400;
+                        return;
+                    }
+                    
+                    bool canCancel = !patientCancelReason.empty();
+                    float buttonY = my + mh - 60;
+                    float buttonSpacing2 = 20.f;
+                    float totalButtonWidth = 130.f * 2 + buttonSpacing2;
+                    float buttonStartX2 = mx + (mw - totalButtonWidth) / 2.f;
+                    
+                    // Close button
+                    if (isMouseOverRect(mousePos, {buttonStartX2, buttonY}, {130, 44})) {
+                        showPatientCancelModal = false;
+                        patientCancelReason.clear();
+                        activeInputField = -1;
+                        return;
+                    }
+                    
+                    // Confirm button
+                    if (isMouseOverRect(mousePos, {buttonStartX2 + 130 + buttonSpacing2, buttonY}, {130, 44})) {
+                        if (canCancel && !selectedAppointmentToCancel.empty()) {
+                            DataStore::updateAppointmentWithCancelReason(selectedAppointmentToCancel, patientCancelReason);
+                            std::cout << u8"Đã hủy lịch: " << selectedAppointmentToCancel << u8" với lý do: " << patientCancelReason << std::endl;
+                            showPatientCancelModal = false;
+                            patientCancelReason.clear();
+                            selectedAppointmentToCancel.clear();
+                            activeInputField = -1;
+                        }
+                        return;
+                    }
+                    
+                    // Click outside modal
+                    if (!isMouseOverRect(mousePos, {mx, my}, {mw, mh})) {
+                        showPatientCancelModal = false;
+                        patientCancelReason.clear();
+                        activeInputField = -1;
+                        return;
+                    }
+                    return;
+                }
+                
+                // Handle appointment detail modal
+                if (showAppointmentDetailModal) {
+                    auto ws2 = window.getSize();
+                    float W2 = static_cast<float>(ws2.x);
+                    float H2 = static_cast<float>(ws2.y);
+                    float mw = 650.f, mh = 500.f;
+                    float mx = W2/2.f - mw/2.f;
+                    float my = H2/2.f - mh/2.f;
+                    
+                    // Close button
+                    if (isMouseOverRect(mousePos, {mx + mw/2.f - 65, my + mh - 60}, {130, 44})) {
+                        showAppointmentDetailModal = false;
+                        selectedAppointmentForDetail.clear();
+                        return;
+                    }
+                    
+                    // Click outside modal
+                    if (!isMouseOverRect(mousePos, {mx, my}, {mw, mh})) {
+                        showAppointmentDetailModal = false;
+                        selectedAppointmentForDetail.clear();
+                        return;
+                    }
+                    return;
+                }
+                
+                sf::Vector2f contentPos = {panelX + 270.f, 120};
+                float startY = contentPos.y + 70.f;
+                float listWidth = 880.f;
+                
+                // Handle appointment card clicks
+                auto ids = DataStore::listAppointmentsForPatient(currentUserId);
+                struct AptView { std::time_t when; DataStore::AppointmentDetails det; };
+                std::vector<AptView> allApts;
+                auto nowT = std::time(nullptr);
+                
+                for (const auto& aid : ids) {
+                    auto det = DataStore::readAppointment(aid);
+                    std::time_t t;
+                    if (toTimeT(det.date, det.time, t)) {
+                        allApts.push_back({t, det});
+                    }
+                }
+                
+                std::sort(allApts.begin(), allApts.end(), 
+                         [](const AptView& a, const AptView& b){ return a.when > b.when; });
+                
+                int maxShow = static_cast<int>(std::min<size_t>(6, allApts.size()));
+                for (int i = 0; i < maxShow; ++i) {
+                    const auto& det = allApts[i].det;
+                    bool isCancelled = (!det.status.empty() && 
+                                      (det.status == "Cancelled" || det.status == "cancelled"));
+                    
+                    float y = startY + i * 115.f;
+                    
+                    // Cancel button hitbox (always shown, but only active if not cancelled)
+                    if (isMouseOverRect(mousePos, {contentPos.x + listWidth - 120, y + 105 - 42}, {105, 32})) {
+                        if (!isCancelled) {
+                            selectedAppointmentToCancel = det.appointmentId;
+                            patientCancelReason.clear();
+                            showPatientCancelModal = true;
+                            activeInputField = 400;
+                        }
+                        return;
+                    }
+                    
+                    // Appointment card body hitbox (excluding cancel button area)
+                    if (isMouseOverRect(mousePos, {contentPos.x, y}, {listWidth - 130, 105})) {
+                        selectedAppointmentForDetail = det.appointmentId;
+                        showAppointmentDetailModal = true;
+                        return;
+                    }
+                }
+            }
             if (activePatientMenu == PatientMenuOption::BOOK_APPOINTMENT) {
                 sf::Vector2f contentPos = {panelX + 270.f, 120};
                 float searchY = contentPos.y + 70;
-                if (isMouseOverRect(mousePos, {contentPos.x + 195, searchY + 100}, {185, 48})) {
-                    showDatePicker = true;
+                // Make search input clickable
+                if (isMouseOverRect(mousePos, {contentPos.x, searchY}, {380, 48})) {
+                    activeInputField = 200; // Dedicated field ID for search
                     return;
                 }
                 auto allDoctorIds = DataStore::listIDs("Doctor");
@@ -267,26 +369,20 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
                 }
                 // Đồng bộ với render: cột phải bắt đầu tại contentPos.x + 540
                 float appointmentX = contentPos.x + 540;
-                struct AptView { std::time_t when; DataStore::AppointmentDetails det; };
-                std::vector<AptView> upcoming;
-                auto ids = DataStore::listAppointmentsForPatient(currentUserId);
-                auto nowT = std::time(nullptr);
-                for (const auto& aid : ids) {
-                    auto det = DataStore::readAppointment(aid);
-                    if (!det.status.empty() && (det.status == "Cancelled" || det.status == "cancelled")) continue;
-                    std::time_t t;
-                    if (toTimeT(det.date, det.time, t) && t >= nowT) {
-                        upcoming.push_back({t, det});
-                    }
-                }
-                std::sort(upcoming.begin(), upcoming.end(), [](const AptView& a, const AptView& b){ return a.when < b.when; });
-                int toShow = static_cast<int>(std::min<size_t>(2, upcoming.size()));
-                for (int i = 0; i < toShow; ++i) {
-                    float y = (i == 0) ? (searchY + 115) : (searchY + 235);
-                    // aptWidth mới là 370 => nút hủy nằm ở x + 370 - 120
-                    if (isMouseOverRect(mousePos, {appointmentX + 370 - 120, y + 105 - 42}, {105, 32})) {
-                        DataStore::updateAppointmentStatus(upcoming[i].det.appointmentId, "Cancelled");
-                        std::cout << u8"Đã hủy lịch: " << upcoming[i].det.appointmentId << std::endl;
+                const float aptWidth = 370.f;
+                
+                // Handle clicks on "Đặt lịch" buttons in available doctors sidebar
+                auto allDoctorIds2 = DataStore::listIDs("Doctor");
+                int toShow2 = static_cast<int>(std::min<size_t>(4, allDoctorIds2.size()));
+                for (int i = 0; i < toShow2; ++i) {
+                    float y = searchY + 115 + i * 95.f;
+                    if (isMouseOverRect(mousePos, {appointmentX + aptWidth - 110, y + 50}, {100, 28})) {
+                        selectedDoctorForBooking = allDoctorIds2[i];
+                        bookingDateText.clear();
+                        bookingTimeText.clear();
+                        bookingReasonText.clear();
+                        showBookingModal = true;
+                        activeInputField = 100;
                         return;
                     }
                 }
@@ -294,16 +390,237 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
             break;
         }
         case Screen::DOCTOR_DASHBOARD: {
-            if (isMouseOverRect(mousePos, {440, 350}, {400, 50})) {
+            auto ws = window.getSize();
+            float W = static_cast<float>(ws.x);
+            float mainX = W / 2.f - 1180.f / 2.f;
+            sf::Vector2f contentPos = {mainX + 40.f, 140};
+            
+            // Logout
+            if (isMouseOverRect(mousePos, {W - 170.f, 35.f}, {150.f, 30.f})) {
+                resetInputFields();
+                switchToScreen(Screen::LOGIN);
+            }
+            
+            // Handle cancel modal
+            if (showDoctorCancelModal) {
+                auto ws2 = window.getSize();
+                float W2 = static_cast<float>(ws2.x);
+                float H2 = static_cast<float>(ws2.y);
+                float mw = 600.f, mh = 380.f;
+                float mx = W2/2.f - mw/2.f;
+                float my = H2/2.f - mh/2.f;
+                
+                float fieldWidth = 540.f;
+                float fx = mx + (mw - fieldWidth) / 2.f;
+                float startY = my + 100;
+                
+                // Click on text field
+                if (isMouseOverRect(mousePos, {fx, startY}, {fieldWidth, 120})) {
+                    activeInputField = 300;
+                    return;
+                }
+                
+                bool canCancel = !cancelReasonText.empty();
+                float buttonY = my + mh - 60;
+                float buttonSpacing = 20.f;
+                float totalButtonWidth = 130.f * 2 + buttonSpacing;
+                float buttonStartX = mx + (mw - totalButtonWidth) / 2.f;
+                
+                // Close button
+                if (isMouseOverRect(mousePos, {buttonStartX, buttonY}, {130, 44})) {
+                    showDoctorCancelModal = false;
+                    cancelReasonText.clear();
+                    activeInputField = -1;
+                    return;
+                }
+                
+                // Confirm button
+                if (isMouseOverRect(mousePos, {buttonStartX + 130 + buttonSpacing, buttonY}, {130, 44})) {
+                    if (canCancel && !selectedAppointmentToCancel.empty()) {
+                        auto det = DataStore::readAppointment(selectedAppointmentToCancel);
+                        DataStore::updateAppointmentWithCancelReason(selectedAppointmentToCancel, cancelReasonText);
+                        // Send notification to patient with format: "Lịch khám <ID> đã bị hủy với lí do: <reason>"
+                        std::string msg = u8"Lịch khám " + selectedAppointmentToCancel + 
+                                        u8" đã bị hủy với lí do: " + cancelReasonText;
+                        DataStore::appendNotification(det.patientId, msg);
+                        std::cout << u8"Đã hủy lịch và gửi thông báo cho bệnh nhân" << std::endl;
+                        showDoctorCancelModal = false;
+                        cancelReasonText.clear();
+                        selectedAppointmentToCancel.clear();
+                        activeInputField = -1;
+                    }
+                    return;
+                }
+                
+                // Click outside modal
+                if (!isMouseOverRect(mousePos, {mx, my}, {mw, mh})) {
+                    showDoctorCancelModal = false;
+                    cancelReasonText.clear();
+                    activeInputField = -1;
+                    return;
+                }
+                return;
+            }
+            
+            // Handle doctor appointment detail modal
+            if (showDoctorAppointmentDetailModal) {
+                auto ws2 = window.getSize();
+                float W2 = static_cast<float>(ws2.x);
+                float H2 = static_cast<float>(ws2.y);
+                float mw = 650.f, mh = 550.f;
+                float mx = W2/2.f - mw/2.f;
+                float my = H2/2.f - mh/2.f;
+                
+                // Close button
+                if (isMouseOverRect(mousePos, {mx + mw/2.f - 65, my + mh - 60}, {130, 44})) {
+                    showDoctorAppointmentDetailModal = false;
+                    selectedDoctorAppointmentForDetail.clear();
+                    return;
+                }
+                
+                // Click outside modal
+                if (!isMouseOverRect(mousePos, {mx, my}, {mw, mh})) {
+                    showDoctorAppointmentDetailModal = false;
+                    selectedDoctorAppointmentForDetail.clear();
+                    return;
+                }
+                return;
+            }
+            
+            // Update info button
+            if (isMouseOverRect(mousePos, {contentPos.x, contentPos.y + 50}, {350, 50})) {
                 loadDoctorInfo();
                 switchToScreen(Screen::UPDATE_DOCTOR_INFO);
+                return;
             }
+            
+            // Cancel appointment buttons
+            float startY = contentPos.y + 120.f;
+            float listWidth = 1100.f;
+            auto ids = DataStore::listAppointmentsForDoctor(currentUserId);
+            
+            struct AptView { std::time_t when; DataStore::AppointmentDetails det; };
+            std::vector<AptView> allApts;
+            
+            for (const auto& aid : ids) {
+                auto det = DataStore::readAppointment(aid);
+                std::time_t t;
+                if (toTimeT(det.date, det.time, t)) {
+                    allApts.push_back({t, det});
+                }
+            }
+            
+            std::sort(allApts.begin(), allApts.end(), 
+                     [](const AptView& a, const AptView& b){ return a.when > b.when; });
+            
+            int maxShow = static_cast<int>(std::min<size_t>(5, allApts.size()));
+            for (int i = 0; i < maxShow; ++i) {
+                const auto& det = allApts[i].det;
+                bool isCancelled = (!det.status.empty() && 
+                                  (det.status == "Cancelled" || det.status == "cancelled"));
+                
+                float y = startY + i * 120.f;
+                
+                // Cancel button hitbox (only for non-cancelled appointments)
+                if (!isCancelled) {
+                    if (isMouseOverRect(mousePos, {contentPos.x + listWidth - 140, y + 75}, {130, 28})) {
+                        selectedAppointmentToCancel = det.appointmentId;
+                        cancelReasonText.clear();
+                        showDoctorCancelModal = true;
+                        activeInputField = 300;
+                        return;
+                    }
+                }
+                
+                // Appointment card body hitbox (excluding cancel button area)
+                if (isMouseOverRect(mousePos, {contentPos.x, y}, {listWidth - 150, 110})) {
+                    selectedDoctorAppointmentForDetail = det.appointmentId;
+                    showDoctorAppointmentDetailModal = true;
+                    return;
+                }
+            }
+            
             break;
         }
     }
 }
 
 void GUI::handleTextInput(char32_t unicode) {
+    // Handle cancel reason in doctor dashboard
+    if (currentScreen == Screen::DOCTOR_DASHBOARD && activeInputField == 300) {
+        if (unicode == 8) {
+            if (!cancelReasonText.empty()) {
+                while (!cancelReasonText.empty()) {
+                    cancelReasonText.pop_back();
+                    if (cancelReasonText.empty() || (static_cast<unsigned char>(cancelReasonText.back()) & 0xC0) != 0x80) break;
+                }
+            }
+            return;
+        }
+        if (unicode >= 32 && unicode < 0x10000) {
+            if (unicode < 0x80) {
+                cancelReasonText.push_back(static_cast<char>(unicode));
+            } else if (unicode < 0x800) {
+                cancelReasonText.push_back(static_cast<char>(0xC0 | (unicode >> 6)));
+                cancelReasonText.push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+            } else {
+                cancelReasonText.push_back(static_cast<char>(0xE0 | (unicode >> 12)));
+                cancelReasonText.push_back(static_cast<char>(0x80 | ((unicode >> 6) & 0x3F)));
+                cancelReasonText.push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+            }
+        }
+        return;
+    }
+    // Handle patient cancel reason in patient dashboard
+    if (currentScreen == Screen::PATIENT_DASHBOARD && activeInputField == 400) {
+        if (unicode == 8) {
+            if (!patientCancelReason.empty()) {
+                while (!patientCancelReason.empty()) {
+                    patientCancelReason.pop_back();
+                    if (patientCancelReason.empty() || (static_cast<unsigned char>(patientCancelReason.back()) & 0xC0) != 0x80) break;
+                }
+            }
+            return;
+        }
+        if (unicode >= 32 && unicode < 0x10000) {
+            if (unicode < 0x80) {
+                patientCancelReason.push_back(static_cast<char>(unicode));
+            } else if (unicode < 0x800) {
+                patientCancelReason.push_back(static_cast<char>(0xC0 | (unicode >> 6)));
+                patientCancelReason.push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+            } else {
+                patientCancelReason.push_back(static_cast<char>(0xE0 | (unicode >> 12)));
+                patientCancelReason.push_back(static_cast<char>(0x80 | ((unicode >> 6) & 0x3F)));
+                patientCancelReason.push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+            }
+        }
+        return;
+    }
+    // Handle search field in patient dashboard
+    if (currentScreen == Screen::PATIENT_DASHBOARD && activeInputField == 200) {
+        if (unicode == 8) {
+            if (!searchDoctorText.empty()) {
+                while (!searchDoctorText.empty()) {
+                    searchDoctorText.pop_back();
+                    if (searchDoctorText.empty() || (static_cast<unsigned char>(searchDoctorText.back()) & 0xC0) != 0x80) break;
+                }
+            }
+            return;
+        }
+        if (unicode >= 32 && unicode < 0x10000) {
+            if (unicode < 0x80) {
+                searchDoctorText.push_back(static_cast<char>(unicode));
+            } else if (unicode < 0x800) {
+                searchDoctorText.push_back(static_cast<char>(0xC0 | (unicode >> 6)));
+                searchDoctorText.push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+            } else {
+                searchDoctorText.push_back(static_cast<char>(0xE0 | (unicode >> 12)));
+                searchDoctorText.push_back(static_cast<char>(0x80 | ((unicode >> 6) & 0x3F)));
+                searchDoctorText.push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+            }
+        }
+        return;
+    }
     if (currentScreen == Screen::PATIENT_DASHBOARD && showBookingModal) {
         if (unicode == 8) {
             std::string* target = nullptr;

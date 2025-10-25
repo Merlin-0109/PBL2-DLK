@@ -154,6 +154,7 @@ bool DataStore::writeAppointment(const std::string& appointmentId, const Appoint
     file << "time:" << details.time << "\n";
     file << "reason:" << details.reason << "\n";
     file << "status:" << details.status << "\n";
+    file << "cancelReason:" << details.cancelReason << "\n";
     
     file.close();
     
@@ -199,6 +200,7 @@ DataStore::AppointmentDetails DataStore::readAppointment(const std::string& appo
             else if (key == "time") details.time = value;
             else if (key == "reason") details.reason = value;
             else if (key == "status") details.status = value;
+            else if (key == "cancelReason") details.cancelReason = value;
         }
     }
     
@@ -265,7 +267,37 @@ bool DataStore::updateAppointmentStatus(const std::string& appointmentId, const 
     file << "time:" << details.time << "\n";
     file << "reason:" << details.reason << "\n";
     file << "status:" << details.status << "\n";
+    file << "cancelReason:" << details.cancelReason << "\n";
     file.close();
+    return true;
+}
+
+bool DataStore::updateAppointmentWithCancelReason(const std::string& appointmentId, const std::string& cancelReason) {
+    auto details = readAppointment(appointmentId);
+    if (details.appointmentId.empty()) {
+        return false;
+    }
+    details.status = "Cancelled";
+    details.cancelReason = cancelReason;
+    
+    // Update appointment file directly without appending to lists
+    std::string filepath = "data/appointments/" + appointmentId + ".txt";
+    std::ofstream file(filepath);
+    
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    file << "appointmentId:" << details.appointmentId << "\n";
+    file << "patientId:" << details.patientId << "\n";
+    file << "doctorId:" << details.doctorId << "\n";
+    file << "date:" << details.date << "\n";
+    file << "time:" << details.time << "\n";
+    file << "reason:" << details.reason << "\n";
+    file << "status:" << details.status << "\n";
+    file << "cancelReason:" << details.cancelReason << "\n";
+    file.close();
+    
     return true;
 }
 

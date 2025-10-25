@@ -72,6 +72,23 @@ private:
 
     // Simple date picker state
     bool showDatePicker = false;
+    
+    // Doctor cancel modal state
+    bool showDoctorCancelModal = false;
+    std::string selectedAppointmentToCancel;
+    std::string cancelReasonText;
+    
+    // Doctor appointment detail modal state
+    bool showDoctorAppointmentDetailModal = false;
+    std::string selectedDoctorAppointmentForDetail;
+    
+    // Patient cancel modal state
+    bool showPatientCancelModal = false;
+    std::string patientCancelReason;
+    
+    // Appointment detail view modal state
+    bool showAppointmentDetailModal = false;
+    std::string selectedAppointmentForDetail;
 
 public:
     GUI();
@@ -110,13 +127,16 @@ private:
     void drawInputField(sf::Vector2f position, sf::Vector2f size, const std::string& label,
                        const std::string& value, bool isActive, bool isPassword,
                        sf::RenderWindow& window);
+    void drawInputFieldWithPlaceholder(sf::Vector2f position, sf::Vector2f size, const std::string& placeholder,
+                        const std::string& value, bool isActive, bool isPassword,
+                        sf::RenderWindow& window);
     void drawRoleCard(sf::Vector2f position, sf::Vector2f size, const std::string& title,
                      const std::string& description, const std::string& icon,
                      bool isSelected, sf::RenderWindow& window);
     void drawNavigationMenu(sf::Vector2f position, sf::Vector2f size, sf::RenderWindow& window);
     void drawAppointmentCard(sf::Vector2f position, sf::Vector2f size, 
                             const std::string& doctorName, const std::string& specialty,
-                            const std::string& dateTime, sf::RenderWindow& window);
+                            const std::string& dateTime, bool isCancelled, sf::RenderWindow& window);
     void drawDoctorListItem(sf::Vector2f position, sf::Vector2f size,
                             const std::string& doctorName, const std::string& specialty,
                             const std::string& doctorId, sf::RenderWindow& window);

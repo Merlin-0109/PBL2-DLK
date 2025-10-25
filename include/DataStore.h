@@ -33,6 +33,7 @@ public:
         std::string time;
         std::string reason;
         std::string status;
+        std::string cancelReason;  // Reason for cancellation
     };
 
     // Patient functions
@@ -51,6 +52,7 @@ public:
     static std::vector<std::string> getPatientAppointments(const std::string& patientId);
     static std::vector<std::string> getDoctorAppointments(const std::string& doctorId);
     static bool updateAppointmentStatus(const std::string& appointmentId, const std::string& newStatus);
+    static bool updateAppointmentWithCancelReason(const std::string& appointmentId, const std::string& cancelReason);
     static bool deleteAppointment(const std::string& appointmentId);
     
     // New functions for Services
