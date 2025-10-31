@@ -131,7 +131,7 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
             float panelX = W / 2.f - 1180.f / 2.f;
             float menuStartY = 140;
             float menuItemHeight = 70;
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < 5; i++) {  // Changed from 4 to 5 for Medical History
                 float itemY = menuStartY + i * menuItemHeight;
                 if (isMouseOverRect(mousePos, {panelX, itemY}, {250, 60})) {
                     activePatientMenu = static_cast<PatientMenuOption>(i);
@@ -334,6 +334,28 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
                     }
                 }
             }
+            if (activePatientMenu == PatientMenuOption::MEDICAL_HISTORY) {
+                // Handle medical history detail viewing
+                sf::Vector2f contentPos = {panelX + 270.f, 120};
+                float startY = contentPos.y + 70.f;
+                float cardWidth = 920.f;
+                float cardHeight = 160.f;
+                float cardSpacing = 15.f;
+                
+                auto medicalHistory = DataStore::getMedicalHistory(currentUserId);
+                int maxShow = static_cast<int>(std::min<size_t>(4, medicalHistory.size()));
+                
+                for (int i = 0; i < maxShow; ++i) {
+                    float y = startY + i * (cardHeight + cardSpacing);
+                    
+                    // "Xem chi tiết" button
+                    if (isMouseOverRect(mousePos, {contentPos.x + cardWidth - 140, y + cardHeight - 45}, {120, 35})) {
+                        // TODO: Show medical record detail modal
+                        std::cout << "Viewing medical record details..." << std::endl;
+                        return;
+                    }
+                }
+            }
             if (activePatientMenu == PatientMenuOption::BOOK_APPOINTMENT) {
                 sf::Vector2f contentPos = {panelX + 270.f, 120};
                 float searchY = contentPos.y + 70;
@@ -342,16 +364,9 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
                     activeInputField = 200; // Dedicated field ID for search
                     return;
                 }
-                auto allDoctorIds = DataStore::listIDs("Doctor");
-                auto toLower = [](std::string s){ for(char& c: s) c = static_cast<char>(std::tolower((unsigned char)c)); return s; };
-                std::string q = toLower(searchDoctorText);
-                std::vector<std::string> filtered;
-                for (const auto& did : allDoctorIds) {
-                    if (q.empty()) { filtered.push_back(did); continue; }
-                    auto info = DataStore::readDoctorInfo(did);
-                    std::string hay = toLower(info.name + " " + info.specialization + " " + did);
-                    if (hay.find(q) != std::string::npos) filtered.push_back(did);
-                }
+                // Use inverted index for searching doctors
+                std::vector<std::string> filtered = DataStore::searchDoctorsByInvertedIndex(searchDoctorText);
+                
                 int showCount = static_cast<int>(std::min<size_t>(6, filtered.size()));
                 float listStartY = searchY + 170;
                 for (int i = 0; i < showCount; ++i) {
@@ -487,6 +502,99 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
                 return;
             }
             
+            // Handle add medical record modal
+            if (showAddMedicalRecordModal) {
+                float mx = 212.f;
+                float my = 70.f;
+                float mw = 600.f;
+                float mh = 620.f;
+                float fieldX = mx + 30;
+                float fieldY = my + 80;
+                float fieldWidth = mw - 60;
+                float spacing = 90;
+                
+                // Input field clicks
+                if (isMouseOverRect(mousePos, {fieldX, fieldY + 25}, {fieldWidth, 40})) {
+                    activeInputField = 100; // Diagnosis
+                    return;
+                }
+                if (isMouseOverRect(mousePos, {fieldX, fieldY + spacing + 25}, {fieldWidth, 40})) {
+                    activeInputField = 101; // Symptoms
+                    return;
+                }
+                if (isMouseOverRect(mousePos, {fieldX, fieldY + spacing * 2 + 25}, {fieldWidth, 40})) {
+                    activeInputField = 102; // Prescription
+                    return;
+                }
+                if (isMouseOverRect(mousePos, {fieldX, fieldY + spacing * 3 + 25}, {fieldWidth, 40})) {
+                    activeInputField = 103; // Notes
+                    return;
+                }
+                if (isMouseOverRect(mousePos, {fieldX, fieldY + spacing * 4 + 25}, {fieldWidth, 40})) {
+                    activeInputField = 104; // Follow-up date
+                    return;
+                }
+                
+                // Save button
+                if (isMouseOverRect(mousePos, {mx + mw/2.f - 210, my + mh - 60}, {180, 44})) {
+                    if (!medicalRecordDiagnosis.empty() && !selectedPatientForMedicalRecord.empty()) {
+                        std::string recordId = DataStore::generateMedicalRecordId();
+                        std::string visitDate = getCurrentDateString();
+                        
+                        DataStore::MedicalRecord record;
+                        record.recordId = recordId;
+                        record.patientId = selectedPatientForMedicalRecord;
+                        record.doctorId = currentUserId;
+                        record.visitDate = visitDate;
+                        record.diagnosis = medicalRecordDiagnosis;
+                        record.symptoms = medicalRecordSymptoms;
+                        record.prescription = medicalRecordPrescription;
+                        record.notes = medicalRecordNotes;
+                        record.followUpDate = medicalRecordFollowUpDate;
+                        
+                        DataStore::addMedicalRecord(selectedPatientForMedicalRecord, record);
+                        
+                        // Reset and close
+                        showAddMedicalRecordModal = false;
+                        selectedPatientForMedicalRecord.clear();
+                        medicalRecordDiagnosis.clear();
+                        medicalRecordSymptoms.clear();
+                        medicalRecordPrescription.clear();
+                        medicalRecordNotes.clear();
+                        medicalRecordFollowUpDate.clear();
+                        activeInputField = -1;
+                    }
+                    return;
+                }
+                
+                // Cancel button
+                if (isMouseOverRect(mousePos, {mx + mw/2.f + 30, my + mh - 60}, {180, 44})) {
+                    showAddMedicalRecordModal = false;
+                    selectedPatientForMedicalRecord.clear();
+                    medicalRecordDiagnosis.clear();
+                    medicalRecordSymptoms.clear();
+                    medicalRecordPrescription.clear();
+                    medicalRecordNotes.clear();
+                    medicalRecordFollowUpDate.clear();
+                    activeInputField = -1;
+                    return;
+                }
+                
+                // Click outside modal
+                if (!isMouseOverRect(mousePos, {mx, my}, {mw, mh})) {
+                    showAddMedicalRecordModal = false;
+                    selectedPatientForMedicalRecord.clear();
+                    medicalRecordDiagnosis.clear();
+                    medicalRecordSymptoms.clear();
+                    medicalRecordPrescription.clear();
+                    medicalRecordNotes.clear();
+                    medicalRecordFollowUpDate.clear();
+                    activeInputField = -1;
+                    return;
+                }
+                return;
+            }
+            
             // Update info button
             if (isMouseOverRect(mousePos, {contentPos.x, contentPos.y + 50}, {350, 50})) {
                 loadDoctorInfo();
@@ -521,6 +629,22 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
                 
                 float y = startY + i * 120.f;
                 
+                // Add medical record button (only for non-cancelled appointments)
+                if (!isCancelled) {
+                    if (isMouseOverRect(mousePos, {contentPos.x + listWidth - 290, y + 75}, {140, 28})) {
+                        std::cout << "Opening medical record modal for patient: " << det.patientId << std::endl;
+                        selectedPatientForMedicalRecord = det.patientId;
+                        showAddMedicalRecordModal = true;
+                        medicalRecordDiagnosis.clear();
+                        medicalRecordSymptoms.clear();
+                        medicalRecordPrescription.clear();
+                        medicalRecordNotes.clear();
+                        medicalRecordFollowUpDate.clear();
+                        activeInputField = 100; // Start with diagnosis field
+                        return;
+                    }
+                }
+                
                 // Cancel button hitbox (only for non-cancelled appointments)
                 if (!isCancelled) {
                     if (isMouseOverRect(mousePos, {contentPos.x + listWidth - 140, y + 75}, {130, 28})) {
@@ -546,6 +670,53 @@ void GUI::handleMouseClick(const sf::Vector2f& mousePos) {
 }
 
 void GUI::handleTextInput(char32_t unicode) {
+    // Handle medical record fields in doctor dashboard
+    if (currentScreen == Screen::DOCTOR_DASHBOARD && showAddMedicalRecordModal && 
+        activeInputField >= 100 && activeInputField <= 104) {
+        std::string* target = nullptr;
+        if (activeInputField == 100) target = &medicalRecordDiagnosis;
+        else if (activeInputField == 101) target = &medicalRecordSymptoms;
+        else if (activeInputField == 102) target = &medicalRecordPrescription;
+        else if (activeInputField == 103) target = &medicalRecordNotes;
+        else if (activeInputField == 104) target = &medicalRecordFollowUpDate;
+        
+        if (target) {
+            if (unicode == 8) {
+                if (!target->empty()) {
+                    while (!target->empty()) {
+                        target->pop_back();
+                        if (target->empty() || (static_cast<unsigned char>(target->back()) & 0xC0) != 0x80) break;
+                    }
+                }
+                return;
+            }
+            if (unicode >= 32 && unicode < 0x10000) {
+                // For follow-up date field (104), only allow digits and /
+                if (activeInputField == 104) {
+                    if (unicode >= '0' && unicode <= '9') {
+                        if (target->size() < 10) {
+                            target->push_back(static_cast<char>(unicode));
+                            if (target->size() == 2 || target->size() == 5) target->push_back('/');
+                        }
+                    }
+                } else {
+                    // For other fields, allow all UTF-8 characters
+                    if (unicode < 0x80) {
+                        target->push_back(static_cast<char>(unicode));
+                    } else if (unicode < 0x800) {
+                        target->push_back(static_cast<char>(0xC0 | (unicode >> 6)));
+                        target->push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+                    } else {
+                        target->push_back(static_cast<char>(0xE0 | (unicode >> 12)));
+                        target->push_back(static_cast<char>(0x80 | ((unicode >> 6) & 0x3F)));
+                        target->push_back(static_cast<char>(0x80 | (unicode & 0x3F)));
+                    }
+                }
+            }
+        }
+        return;
+    }
+    
     // Handle cancel reason in doctor dashboard
     if (currentScreen == Screen::DOCTOR_DASHBOARD && activeInputField == 300) {
         if (unicode == 8) {

@@ -240,6 +240,44 @@ bool Account::usernameExists(const std::string& username) const {
     return false;
 }
 
+bool Account::emailExists(const std::string& email) const {
+    // Check email in Doctor and Patient roles only (Admin doesn't have email)
+    for (const char* roleName : {"Doctor", "Patient"}) {
+        std::string roleStr(roleName);
+        std::ifstream idList("data/" + roleStr + ".txt");
+        
+        if (!idList.is_open()) {
+            continue;
+        }
+        
+        std::string existingId;
+        while (idList >> existingId) {
+            std::string emailFilePath = "data/" + roleStr + "/" + existingId + "_email.txt";
+            std::ifstream emailFile(emailFilePath);
+            
+            if (!emailFile.is_open()) {
+                continue;
+            }
+            
+            std::string fileEmail;
+            std::getline(emailFile, fileEmail);
+            emailFile.close();
+            
+            // Trim and compare
+            stripBOM(fileEmail);
+            fileEmail = trim(fileEmail);
+            std::string trimmedEmail = trim(email);
+            
+            if (trimmedEmail == fileEmail) {
+                return true;
+            }
+        }
+        idList.close();
+    }
+    
+    return false;
+}
+
 // ============================================================================
 // PRIVATE HELPERS
 // ============================================================================

@@ -180,6 +180,10 @@ void GUI::renderDoctorDashboard() {
                     window.draw(cancelReasonText);
                 }
             } else {
+                // Button for adding medical record
+                drawButton({contentPos.x + listWidth - 290, y + 75}, {140, 28}, u8"+ Lịch sử khám",
+                          sf::Color(76, 175, 80), sf::Color::White, window);
+                
                 drawButton({contentPos.x + listWidth - 140, y + 75}, {130, 28}, u8"Hủy lịch",
                           sf::Color(244, 67, 54), sf::Color::White, window);
             }
@@ -368,6 +372,117 @@ void GUI::renderDoctorDashboard() {
         
         drawButton({mx + mw/2.f - 65, my + mh - 60}, {130, 44}, u8"Đóng",
                    sf::Color(30, 136, 229), sf::Color::White, true, closeHover, window);
+    }
+
+    // Add Medical Record Modal
+    if (showAddMedicalRecordModal) {
+        std::cout << "Rendering medical record modal..." << std::endl;
+        // Overlay
+        auto ws3 = window.getSize();
+        float W3 = static_cast<float>(ws3.x);
+        float H3 = static_cast<float>(ws3.y);
+        sf::RectangleShape overlay({W3, H3});
+        overlay.setPosition({0, 0});
+        overlay.setFillColor(sf::Color(0, 0, 0, 150));
+        window.draw(overlay);
+
+        // Modal box
+        float mw = 600.f;
+        float mh = 620.f;
+        float mx = W3/2.f - mw/2.f;
+        float my = H3/2.f - mh/2.f;
+
+        sf::RectangleShape modalBg({mw, mh});
+        modalBg.setPosition({mx, my});
+        modalBg.setFillColor(sf::Color::White);
+        modalBg.setOutlineThickness(1);
+        modalBg.setOutlineColor(sf::Color(200, 200, 200));
+        window.draw(modalBg);
+
+        // Title
+        sf::Text title = makeText(font, u8"Thêm Hồ Sơ Khám Bệnh", 24);
+        title.setPosition({mx + 30, my + 20});
+        title.setFillColor(sf::Color(30, 136, 229));
+        title.setStyle(sf::Text::Bold);
+        window.draw(title);
+
+        float fieldX = mx + 30;
+        float fieldY = my + 80;
+        float fieldWidth = mw - 60;
+        float spacing = 90;
+
+        // Field 1: Diagnosis
+        {
+            sf::Text label = makeText(font, u8"Chẩn đoán:", 16);
+            label.setPosition({fieldX, fieldY});
+            label.setFillColor(sf::Color(60, 60, 60));
+            window.draw(label);
+
+            bool isActive = (activeInputField == 100);
+            drawInputField({fieldX, fieldY + 25}, {fieldWidth, 40}, "", medicalRecordDiagnosis,
+                          isActive, false, window);
+        }
+
+        // Field 2: Symptoms
+        {
+            sf::Text label = makeText(font, u8"Triệu chứng:", 16);
+            label.setPosition({fieldX, fieldY + spacing});
+            label.setFillColor(sf::Color(60, 60, 60));
+            window.draw(label);
+
+            bool isActive = (activeInputField == 101);
+            drawInputField({fieldX, fieldY + spacing + 25}, {fieldWidth, 40}, "", medicalRecordSymptoms,
+                          isActive, false, window);
+        }
+
+        // Field 3: Prescription
+        {
+            sf::Text label = makeText(font, u8"Đơn thuốc:", 16);
+            label.setPosition({fieldX, fieldY + spacing * 2});
+            label.setFillColor(sf::Color(60, 60, 60));
+            window.draw(label);
+
+            bool isActive = (activeInputField == 102);
+            drawInputField({fieldX, fieldY + spacing * 2 + 25}, {fieldWidth, 40}, "", medicalRecordPrescription,
+                          isActive, false, window);
+        }
+
+        // Field 4: Notes
+        {
+            sf::Text label = makeText(font, u8"Ghi chú:", 16);
+            label.setPosition({fieldX, fieldY + spacing * 3});
+            label.setFillColor(sf::Color(60, 60, 60));
+            window.draw(label);
+
+            bool isActive = (activeInputField == 103);
+            drawInputField({fieldX, fieldY + spacing * 3 + 25}, {fieldWidth, 40}, "", medicalRecordNotes,
+                          isActive, false, window);
+        }
+
+        // Field 5: Follow-up Date
+        {
+            sf::Text label = makeText(font, u8"Ngày tái khám (DD/MM/YYYY):", 16);
+            label.setPosition({fieldX, fieldY + spacing * 4});
+            label.setFillColor(sf::Color(60, 60, 60));
+            window.draw(label);
+
+            bool isActive = (activeInputField == 104);
+            drawInputField({fieldX, fieldY + spacing * 4 + 25}, {fieldWidth, 40}, "", medicalRecordFollowUpDate,
+                          isActive, false, window);
+        }
+
+        // Buttons
+        auto mp4 = sf::Mouse::getPosition(window);
+        sf::Vector2f mpos4 = {static_cast<float>(mp4.x), static_cast<float>(mp4.y)};
+        
+        bool saveHover = isMouseOverRect(mpos4, {mx + mw/2.f - 210, my + mh - 60}, {180, 44});
+        bool cancelHover = isMouseOverRect(mpos4, {mx + mw/2.f + 30, my + mh - 60}, {180, 44});
+
+        drawButton({mx + mw/2.f - 210, my + mh - 60}, {180, 44}, u8"Lưu hồ sơ",
+                   sf::Color(76, 175, 80), sf::Color::White, true, saveHover, window);
+
+        drawButton({mx + mw/2.f + 30, my + mh - 60}, {180, 44}, u8"Hủy",
+                   sf::Color(158, 158, 158), sf::Color::White, true, cancelHover, window);
     }
 }
 

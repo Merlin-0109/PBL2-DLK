@@ -174,10 +174,11 @@ void GUI::drawNavigationMenu(sf::Vector2f position, sf::Vector2f size, sf::Rende
     MenuItem items[] = {
         {PatientMenuOption::BOOK_APPOINTMENT, u8"⊕", u8"Đặt lịch khám"},
         {PatientMenuOption::MY_APPOINTMENTS, u8"☰", u8"Lịch khám của tôi"},
+        {PatientMenuOption::MEDICAL_HISTORY, u8"◐", u8"Lịch sử khám bệnh"},
         {PatientMenuOption::NOTIFICATIONS, u8"◉", u8"Thông báo"},
         {PatientMenuOption::UPDATE_INFO, u8"◈", u8"Cập nhật thông tin"}
     };
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         bool isActive = (items[i].option == activePatientMenu);
         float itemY = startY + i * (menuItemHeight + 12);
         if (isActive) {

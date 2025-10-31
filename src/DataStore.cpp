@@ -5,8 +5,15 @@
 #include <filesystem>
 #include <ctime>
 #include <iomanip>
+#include <algorithm>
+#include <cctype>
 
 namespace fs = std::filesystem;
+
+// Initialize static members for inverted index
+std::map<std::string, std::set<std::string>> DataStore::doctorInvertedIndex;
+bool DataStore::indexBuilt = false;
+
 
 // Ensure appointments directory exists
 void DataStore::ensureAppointmentsDirExists() {
@@ -397,4 +404,254 @@ std::vector<std::string> DataStore::readNotifications(const std::string& userId)
         if (!line.empty()) lines.push_back(line);
     }
     return lines;
+}
+// ============================================
+// Inverted Index for Doctor Search
+// ============================================
+
+// Normalize word: convert to lowercase
+std::string DataStore::normalize(const std::string& word) {
+    std::string normalized = word;
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    return normalized;
+}
+
+// Tokenize text into words (split by spaces and special characters)
+std::vector<std::string> DataStore::tokenize(const std::string& text) {
+    std::vector<std::string> tokens;
+    std::string current;
+    
+    for (char c : text) {
+        if (std::isalnum(static_cast<unsigned char>(c)) || c < 0) { // Allow UTF-8 characters
+            current += c;
+        } else {
+            if (!current.empty()) {
+                tokens.push_back(normalize(current));
+                current.clear();
+            }
+        }
+    }
+    
+    if (!current.empty()) {
+        tokens.push_back(normalize(current));
+    }
+    
+    return tokens;
+}
+
+// Build inverted index from all doctors
+void DataStore::buildDoctorInvertedIndex() {
+    doctorInvertedIndex.clear();
+    
+    auto allDoctorIds = listIDs("Doctor");
+    
+    for (const auto& doctorId : allDoctorIds) {
+        auto info = readDoctorInfo(doctorId);
+        
+        // Tokenize doctor name and specialization
+        std::string searchableText = info.name + " " + info.specialization + " " + doctorId;
+        auto tokens = tokenize(searchableText);
+        
+        // Add each token to inverted index
+        for (const auto& token : tokens) {
+            doctorInvertedIndex[token].insert(doctorId);
+        }
+    }
+    
+    indexBuilt = true;
+}
+
+// Search doctors using inverted index
+std::vector<std::string> DataStore::searchDoctorsByInvertedIndex(const std::string& query) {
+    // Build index if not already built
+    if (!indexBuilt) {
+        buildDoctorInvertedIndex();
+    }
+    
+    // If query is empty, return all doctors
+    if (query.empty()) {
+        return listIDs("Doctor");
+    }
+    
+    // Tokenize query
+    auto queryTokens = tokenize(query);
+    
+    if (queryTokens.empty()) {
+        return listIDs("Doctor");
+    }
+    
+    // Find doctors that match ALL query tokens (AND search)
+    std::set<std::string> result;
+    bool firstToken = true;
+    
+    for (const auto& token : queryTokens) {
+        auto it = doctorInvertedIndex.find(token);
+        
+        if (it == doctorInvertedIndex.end()) {
+            // Token not found, no results
+            result.clear();
+            break;
+        }
+        
+        if (firstToken) {
+            result = it->second;
+            firstToken = false;
+        } else {
+            // Intersection with previous results
+            std::set<std::string> intersection;
+            std::set_intersection(result.begin(), result.end(),
+                                it->second.begin(), it->second.end(),
+                                std::inserter(intersection, intersection.begin()));
+            result = intersection;
+        }
+        
+        if (result.empty()) {
+            break;
+        }
+    }
+    
+    // Convert set to vector
+    return std::vector<std::string>(result.begin(), result.end());
+}
+
+// ============================================
+// Medical Records (Lịch sử khám bệnh)
+// ============================================
+
+// Generate unique medical record ID
+std::string DataStore::generateMedicalRecordId() {
+    auto now = std::time(nullptr);
+    auto tm = *std::localtime(&now);
+    std::ostringstream oss;
+    oss << "MR" << std::put_time(&tm, "%Y%m%d%H%M%S");
+    return oss.str();
+}
+
+// Add a medical record to patient's history
+bool DataStore::addMedicalRecord(const std::string& patientId, const MedicalRecord& record) {
+    std::string filepath = "data/Patient/" + patientId + "_medical_history.txt";
+    std::ofstream file(filepath, std::ios::app);
+    
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    file << "---RECORD_START---\n";
+    file << "recordId:" << record.recordId << "\n";
+    file << "patientId:" << record.patientId << "\n";
+    file << "doctorId:" << record.doctorId << "\n";
+    file << "visitDate:" << record.visitDate << "\n";
+    file << "diagnosis:" << record.diagnosis << "\n";
+    file << "symptoms:" << record.symptoms << "\n";
+    file << "prescription:" << record.prescription << "\n";
+    file << "notes:" << record.notes << "\n";
+    file << "followUpDate:" << record.followUpDate << "\n";
+    file << "---RECORD_END---\n";
+    
+    file.close();
+    return true;
+}
+
+// Get all medical records for a patient
+std::vector<DataStore::MedicalRecord> DataStore::getMedicalHistory(const std::string& patientId) {
+    std::vector<MedicalRecord> records;
+    std::string filepath = "data/Patient/" + patientId + "_medical_history.txt";
+    std::ifstream file(filepath);
+    
+    if (!file.is_open()) {
+        return records; // Return empty vector if file doesn't exist
+    }
+    
+    std::string line;
+    MedicalRecord currentRecord;
+    bool inRecord = false;
+    
+    while (std::getline(file, line)) {
+        if (line == "---RECORD_START---") {
+            inRecord = true;
+            currentRecord = MedicalRecord(); // Reset
+        } else if (line == "---RECORD_END---") {
+            if (inRecord) {
+                records.push_back(currentRecord);
+            }
+            inRecord = false;
+        } else if (inRecord) {
+            size_t pos = line.find(':');
+            if (pos != std::string::npos) {
+                std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+                
+                if (key == "recordId") currentRecord.recordId = value;
+                else if (key == "patientId") currentRecord.patientId = value;
+                else if (key == "doctorId") currentRecord.doctorId = value;
+                else if (key == "visitDate") currentRecord.visitDate = value;
+                else if (key == "diagnosis") currentRecord.diagnosis = value;
+                else if (key == "symptoms") currentRecord.symptoms = value;
+                else if (key == "prescription") currentRecord.prescription = value;
+                else if (key == "notes") currentRecord.notes = value;
+                else if (key == "followUpDate") currentRecord.followUpDate = value;
+            }
+        }
+    }
+    
+    file.close();
+    return records;
+}
+
+// Read a specific medical record
+DataStore::MedicalRecord DataStore::readMedicalRecord(const std::string& patientId, const std::string& recordId) {
+    auto records = getMedicalHistory(patientId);
+    
+    for (const auto& record : records) {
+        if (record.recordId == recordId) {
+            return record;
+        }
+    }
+    
+    return MedicalRecord(); // Return empty record if not found
+}
+
+// Update a medical record
+bool DataStore::updateMedicalRecord(const std::string& patientId, const MedicalRecord& updatedRecord) {
+    auto records = getMedicalHistory(patientId);
+    
+    // Find and update the record
+    bool found = false;
+    for (auto& record : records) {
+        if (record.recordId == updatedRecord.recordId) {
+            record = updatedRecord;
+            found = true;
+            break;
+        }
+    }
+    
+    if (!found) {
+        return false;
+    }
+    
+    // Rewrite the entire file with updated records
+    std::string filepath = "data/Patient/" + patientId + "_medical_history.txt";
+    std::ofstream file(filepath);
+    
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    for (const auto& record : records) {
+        file << "---RECORD_START---\n";
+        file << "recordId:" << record.recordId << "\n";
+        file << "patientId:" << record.patientId << "\n";
+        file << "doctorId:" << record.doctorId << "\n";
+        file << "visitDate:" << record.visitDate << "\n";
+        file << "diagnosis:" << record.diagnosis << "\n";
+        file << "symptoms:" << record.symptoms << "\n";
+        file << "prescription:" << record.prescription << "\n";
+        file << "notes:" << record.notes << "\n";
+        file << "followUpDate:" << record.followUpDate << "\n";
+        file << "---RECORD_END---\n";
+    }
+    
+    file.close();
+    return true;
 }

@@ -65,6 +65,8 @@ void GUI::renderPatientDashboard() {
         sectionTitle = u8"Thông báo";
     } else if (activePatientMenu == PatientMenuOption::UPDATE_INFO) {
         sectionTitle = u8"Cập nhật thông tin";
+    } else if (activePatientMenu == PatientMenuOption::MEDICAL_HISTORY) {
+        sectionTitle = u8"Lịch sử khám bệnh";
     }
     sf::Text contentTitle = makeText(font, sectionTitle, 28);
     contentTitle.setPosition(contentPos);
@@ -81,16 +83,9 @@ void GUI::renderPatientDashboard() {
                    sf::Color(76, 175, 80), sf::Color::White, window);
         
         float listStartY = searchY + 80;  // Adjusted from searchY + 170 to move list up
-        auto allDoctorIds = DataStore::listIDs("Doctor");
-        std::vector<std::string> filtered;
-        auto toLower = [](std::string s){ for(char& c: s) c = static_cast<char>(std::tolower((unsigned char)c)); return s; };
-        std::string q = toLower(searchDoctorText);
-        for (const auto& did : allDoctorIds) {
-            if (q.empty()) { filtered.push_back(did); continue; }
-            auto info = DataStore::readDoctorInfo(did);
-            std::string hay = toLower(info.name + " " + info.specialization + " " + did);
-            if (hay.find(q) != std::string::npos) filtered.push_back(did);
-        }
+        // Use inverted index for searching doctors
+        std::vector<std::string> filtered = DataStore::searchDoctorsByInvertedIndex(searchDoctorText);
+        
         int showCount = static_cast<int>(std::min<size_t>(6, filtered.size()));
         if (showCount > 0) {
             for (int i = 0; i < showCount; ++i) {
@@ -302,6 +297,120 @@ void GUI::renderPatientDashboard() {
         drawButton({contentPos.x, contentPos.y + 80}, {350, 50}, 
                   u8"Cập nhật thông tin cá nhân",
                   sf::Color(30, 136, 229), sf::Color::White, window);
+    }
+    else if (activePatientMenu == PatientMenuOption::MEDICAL_HISTORY) {
+        // Display medical history
+        float startY = contentPos.y + 70.f;
+        float cardWidth = 920.f;
+        float cardHeight = 160.f;
+        float cardSpacing = 15.f;
+        
+        auto medicalHistory = DataStore::getMedicalHistory(currentUserId);
+        
+        if (medicalHistory.empty()) {
+            // Empty state
+            sf::RectangleShape emptyBox({cardWidth, 200});
+            emptyBox.setPosition({contentPos.x, startY});
+            emptyBox.setFillColor(sf::Color(250, 252, 255));
+            emptyBox.setOutlineThickness(1);
+            emptyBox.setOutlineColor(sf::Color(220, 230, 240));
+            window.draw(emptyBox);
+            
+            sf::Text emptyIcon = makeSymbolText(symbolFont, u8"◐", 52);
+            sf::FloatRect iconBounds = emptyIcon.getLocalBounds();
+            emptyIcon.setPosition({contentPos.x + cardWidth/2.f - iconBounds.size.x/2.f, startY + 40});
+            emptyIcon.setFillColor(sf::Color(150, 170, 190));
+            window.draw(emptyIcon);
+            
+            sf::Text emptyText = makeText(font, u8"Chưa có lịch sử khám bệnh", 16);
+            sf::FloatRect textBounds = emptyText.getLocalBounds();
+            emptyText.setPosition({contentPos.x + cardWidth/2.f - textBounds.size.x/2.f, startY + 110});
+            emptyText.setFillColor(sf::Color(120, 140, 160));
+            window.draw(emptyText);
+        } else {
+            // Display medical records (max 4)
+            int maxShow = static_cast<int>(std::min<size_t>(4, medicalHistory.size()));
+            
+            for (int i = 0; i < maxShow; ++i) {
+                const auto& record = medicalHistory[medicalHistory.size() - 1 - i]; // Show newest first
+                float y = startY + i * (cardHeight + cardSpacing);
+                
+                // Card background
+                sf::RectangleShape card({cardWidth, cardHeight});
+                card.setPosition({contentPos.x, y});
+                card.setFillColor(sf::Color::White);
+                card.setOutlineThickness(1);
+                card.setOutlineColor(sf::Color(220, 230, 240));
+                window.draw(card);
+                
+                // Doctor icon
+                sf::Text docIcon = makeSymbolText(symbolFont, u8"⚕", 28);
+                docIcon.setPosition({contentPos.x + 18, y + 15});
+                docIcon.setFillColor(sf::Color(76, 175, 80));
+                window.draw(docIcon);
+                
+                // Visit date
+                sf::Text dateLabel = makeText(font, u8"Ngày khám:", 13);
+                dateLabel.setPosition({contentPos.x + 60, y + 15});
+                dateLabel.setFillColor(sf::Color(100, 120, 140));
+                window.draw(dateLabel);
+                
+                sf::Text dateValue = makeText(font, record.visitDate, 15);
+                dateValue.setPosition({contentPos.x + 60, y + 35});
+                dateValue.setFillColor(sf::Color(25, 35, 50));
+                dateValue.setStyle(sf::Text::Bold);
+                window.draw(dateValue);
+                
+                // Doctor info
+                auto doctorInfo = DataStore::readDoctorInfo(record.doctorId);
+                std::string doctorName = doctorInfo.name.empty() ? (u8"Bác sĩ " + record.doctorId) : doctorInfo.name;
+                
+                sf::Text docLabel = makeText(font, u8"Bác sĩ:", 13);
+                docLabel.setPosition({contentPos.x + 220, y + 15});
+                docLabel.setFillColor(sf::Color(100, 120, 140));
+                window.draw(docLabel);
+                
+                sf::Text docName = makeText(font, doctorName, 15);
+                docName.setPosition({contentPos.x + 220, y + 35});
+                docName.setFillColor(sf::Color(25, 35, 50));
+                docName.setStyle(sf::Text::Bold);
+                window.draw(docName);
+                
+                // Diagnosis
+                sf::Text diagLabel = makeText(font, u8"Chẩn đoán:", 13);
+                diagLabel.setPosition({contentPos.x + 18, y + 70});
+                diagLabel.setFillColor(sf::Color(100, 120, 140));
+                window.draw(diagLabel);
+                
+                std::string diagnosisText = record.diagnosis.empty() ? u8"(Chưa cập nhật)" : record.diagnosis;
+                if (diagnosisText.length() > 80) {
+                    diagnosisText = diagnosisText.substr(0, 77) + "...";
+                }
+                sf::Text diagValue = makeText(font, diagnosisText, 14);
+                diagValue.setPosition({contentPos.x + 18, y + 90});
+                diagValue.setFillColor(sf::Color(50, 60, 80));
+                window.draw(diagValue);
+                
+                // View details button
+                auto mousePos = sf::Mouse::getPosition(window);
+                sf::Vector2f mPos = {static_cast<float>(mousePos.x), static_cast<float>(mousePos.y)};
+                bool detailHover = isMouseOverRect(mPos, {contentPos.x + cardWidth - 140, y + cardHeight - 45}, {120, 35});
+                
+                drawButton({contentPos.x + cardWidth - 140, y + cardHeight - 45}, {120, 35}, 
+                          u8"Xem chi tiết",
+                          sf::Color(30, 136, 229), sf::Color::White, true, detailHover, window);
+            }
+            
+            // Show total count if more than 4
+            if (medicalHistory.size() > 4) {
+                sf::Text moreText = makeText(font, 
+                    u8"+ " + std::to_string(medicalHistory.size() - 4) + u8" lần khám khác", 
+                    14);
+                moreText.setPosition({contentPos.x, startY + maxShow * (cardHeight + cardSpacing) + 10});
+                moreText.setFillColor(sf::Color(100, 120, 140));
+                window.draw(moreText);
+            }
+        }
     }
     
     // Render booking modal at the very end so it overlays everything

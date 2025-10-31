@@ -11,3 +11,4 @@ sf::String makeUtf8String(const char* u8str);
 bool parseDateDDMMYYYY(const std::string& s, int& d, int& m, int& y);
 bool parseTimeHHMM(const std::string& s, int& hh, int& mm);
 bool toTimeT(const std::string& date, const std::string& time, std::time_t& out);
+std::string getCurrentDateString();

@@ -34,6 +34,7 @@ public:
     void logout();
     bool changePassword(const std::string& oldPass, const std::string& newPass);
     bool usernameExists(const std::string& username) const;
+    bool emailExists(const std::string& email) const;
     
     // Static utilities
     static void ensureDefaultAdminExists();

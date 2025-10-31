@@ -78,6 +78,7 @@ void GUI::run() {
 void GUI::switchToScreen(Screen newScreen) {
     currentScreen = newScreen;
     activeInputField = -1;
+    errorMessage.clear(); // Clear error message when switching screens
     if (newScreen == Screen::REGISTER_SELECT_ROLE) {
         resetInputFields();
         selectedRole = UserRole::NONE;

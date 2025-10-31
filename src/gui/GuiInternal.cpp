@@ -63,3 +63,13 @@ bool toTimeT(const std::string& date, const std::string& time, std::time_t& out)
     out = std::mktime(&tm);
     return out != -1;
 }
+
+std::string getCurrentDateString() {
+    std::time_t now = std::time(nullptr);
+    std::tm* local = std::localtime(&now);
+    std::ostringstream oss;
+    oss << std::setfill('0') << std::setw(2) << local->tm_mday << "/"
+        << std::setw(2) << (local->tm_mon + 1) << "/"
+        << (local->tm_year + 1900);
+    return oss.str();
+}

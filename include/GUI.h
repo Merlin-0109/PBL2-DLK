@@ -27,6 +27,10 @@ private:
     std::string inputConfirmPassword;
     std::string inputEmail;
     
+    // Error message display
+    std::string errorMessage;
+    sf::Clock errorMessageClock;
+    
     // Additional fields for profile update
     std::string inputFullName;
     std::string inputPhone;
@@ -54,7 +58,8 @@ private:
         BOOK_APPOINTMENT,
         MY_APPOINTMENTS,
         NOTIFICATIONS,
-        UPDATE_INFO
+        UPDATE_INFO,
+        MEDICAL_HISTORY
     };
     PatientMenuOption activePatientMenu;
     
@@ -86,6 +91,18 @@ private:
     // Appointment detail view modal state
     bool showAppointmentDetailModal = false;
     std::string selectedAppointmentForDetail;
+    
+    // Medical Record modal state (for Doctor)
+    bool showAddMedicalRecordModal = false;
+    std::string selectedPatientForMedicalRecord;
+    std::string medicalRecordDiagnosis;
+    std::string medicalRecordSymptoms;
+    std::string medicalRecordPrescription;
+    std::string medicalRecordNotes;
+    std::string medicalRecordFollowUpDate;
+    
+    // Medical History view modal state (for Patient)
+    bool showMedicalHistoryModal = false;
 
 public:
     GUI();

@@ -105,6 +105,22 @@ void GUI::renderRegisterInfo() {
                    inputConfirmPassword, activeInputField == 2, true, window);
     drawInputField({baseX, startY + spacing * 3}, {600, 50}, "Email *", inputEmail,
                    activeInputField == 3, false, window);
+    
+    // Display error message if exists and less than 5 seconds old
+    if (!errorMessage.empty() && errorMessageClock.getElapsedTime().asSeconds() < 5.0f) {
+        // Draw X icon using symbol font
+        sf::Text iconText = makeSymbolText(symbolFont, "\u2716", 16); // ✖ symbol
+        iconText.setFillColor(sf::Color(220, 53, 69));
+        iconText.setPosition({W / 2.f - 200, startY + spacing * 3 + 60});
+        window.draw(iconText);
+        
+        // Draw error message text
+        sf::Text errorText = makeText(font, errorMessage, 14);
+        errorText.setFillColor(sf::Color(220, 53, 69)); // Red color
+        errorText.setPosition({W / 2.f - 175, startY + spacing * 3 + 60});
+        window.draw(errorText);
+    }
+    
     drawButton({W / 2.f - 150.f, 600}, {300, 55}, u8"Đăng Ký", 
                sf::Color(76, 175, 80), sf::Color::White, window);
     sf::Text backText = makeText(font, "< Quay Lại", 16);
@@ -143,6 +159,22 @@ void GUI::renderLogin() {
                    activeInputField == 0, false, window);
     drawInputField({baseX, 390}, {480, 50}, u8"Mật Khẩu", inputPassword,
                    activeInputField == 1, true, window);
+    
+    // Display error message if exists and less than 5 seconds old
+    if (!errorMessage.empty() && errorMessageClock.getElapsedTime().asSeconds() < 5.0f) {
+        // Draw X icon using symbol font
+        sf::Text iconText = makeSymbolText(symbolFont, "\u2716", 16); // ✖ symbol
+        iconText.setFillColor(sf::Color(220, 53, 69));
+        iconText.setPosition({W / 2.f - 160, 455});
+        window.draw(iconText);
+        
+        // Draw error message text
+        sf::Text errorText = makeText(font, errorMessage, 14);
+        errorText.setFillColor(sf::Color(220, 53, 69)); // Red color
+        errorText.setPosition({W / 2.f - 135, 455});
+        window.draw(errorText);
+    }
+    
     drawButton({W / 2.f - 100.f, 480}, {200, 55}, u8"Đăng Nhập",
                sf::Color(30, 136, 229), sf::Color::White, window);
     sf::Text registerLink = makeText(font, u8"Chưa có tài khoản? Đăng Ký", 16);
